@@ -140,4 +140,11 @@ describe("registration copy", () => {
     expect(reminderSet(20, "Prodeko")).toContain(`${WEEKLY_TARGET_MINUTES} minutes a week`);
     expect(reminderOff("Prodeko")).toContain(`${WEEKLY_TARGET_MINUTES} minutes a week`);
   });
+
+  // /remind does not exist until Phase 3. Directing a user to it now would
+  // point them at a command that silently does nothing.
+  test("Phase 1 copy never points at the not-yet-existing /remind command", () => {
+    expect(reminderSet(20, "Prodeko")).not.toContain("/remind");
+    expect(reminderOff("Prodeko")).not.toContain("/remind");
+  });
 });

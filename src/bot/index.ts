@@ -3,6 +3,7 @@ import type { Sql } from "postgres";
 import { installRegistration } from "./registration.ts";
 import { installCheckIn } from "./checkin.ts";
 import { installReports } from "./reports.ts";
+import { COMMAND_DESCRIPTIONS } from "../strings.ts";
 
 export function createBot(sql: Sql, token: string): Bot {
   const bot = new Bot(token);
@@ -36,9 +37,9 @@ export function createBot(sql: Sql, token: string): Bot {
 export async function installCommands(bot: Bot): Promise<void> {
   await bot.api.setMyCommands(
     [
-      { command: "log", description: "Log today" },
-      { command: "me", description: "My week" },
-      { command: "standings", description: "Guild standings" },
+      { command: "log", description: COMMAND_DESCRIPTIONS.log },
+      { command: "me", description: COMMAND_DESCRIPTIONS.me },
+      { command: "standings", description: COMMAND_DESCRIPTIONS.standings },
     ],
     { scope: { type: "all_private_chats" } },
   );

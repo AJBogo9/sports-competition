@@ -6,13 +6,19 @@ import { decode, encode } from "./callbacks.ts";
 import {
   BUTTON_REMINDER_OFF,
   CHOOSE_GUILD,
+  FALLBACK_GUILD,
   REMINDER_HOURS,
+  TOAST_MOVED,
+  TOAST_REMINDERS_OFF,
   alreadyRegistered,
+  buttonMoveTo,
+  buttonStayIn,
   confirmMove,
   moved,
   reminderOff,
   reminderSet,
   stayed,
+  toastReminderSet,
   welcome,
 } from "../strings.ts";
 import { sendCheckIn } from "./checkin.ts";
@@ -22,7 +28,7 @@ function guildKeyboard(): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   GUILDS.forEach((guild, index) => {
     keyboard.text(guild.name, encode({ kind: "guild", slug: guild.slug }));
-    if (index % 3 === 2) keyboard.row();
+    if (index % 3 === 2 && index < GUILDS.length - 1) keyboard.row();
   });
   return keyboard;
 }
@@ -32,9 +38,25 @@ function reminderKeyboard(): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   REMINDER_HOURS.forEach((hour, index) => {
     keyboard.text(`${String(hour).padStart(2, "0")}:00`, encode({ kind: "hour", hour }));
-    if (index % 2 === 1) keyboard.row();
+    if (index % 2 === 1 && index < REMINDER_HOURS.length - 1) keyboard.row();
   });
   return keyboard.row().text(BUTTON_REMINDER_OFF, encode({ kind: "hour", hour: null }));
+}
+
+/**
+ * FR-3. The same explicit Move or Stay choice, whether the intent to switch
+ * guilds arrives via a fresh /start deep link or a tap on a stale picker
+ * button. There must be exactly one place this keyboard is built.
+ */
+function moveOrStayKeyboard(
+  targetSlug: string,
+  targetName: string,
+  currentName: string,
+): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(buttonMoveTo(targetName), encode({ kind: "move", slug: targetSlug }))
+    .row()
+    .text(buttonStayIn(currentName), encode({ kind: "stay" }));
 }
 
 export function installRegistration(bot: Bot, sql: Sql): void {
@@ -57,10 +79,11 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       if (target && target.slug !== existing.guildSlug) {
         await ctx.reply(confirmMove(current?.name ?? existing.guildSlug, target.name), {
           parse_mode: "HTML",
-          reply_markup: new InlineKeyboard()
-            .text(`Move to ${target.name}`, encode({ kind: "move", slug: target.slug }))
-            .row()
-            .text(`Stay in ${current?.name ?? existing.guildSlug}`, encode({ kind: "stay" })),
+          reply_markup: moveOrStayKeyboard(
+            target.slug,
+            target.name,
+            current?.name ?? existing.guildSlug,
+          ),
         });
         return;
       }
@@ -91,7 +114,21 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       await ctx.answerCallbackQuery();
       const existing = await findUser(sql, from.id);
       if (existing) {
-        await ctx.editMessageText(alreadyRegistered(guild.name), { parse_mode: "HTML" });
+        const current = guildBySlug(existing.guildSlug);
+        if (existing.guildSlug !== guild.slug) {
+          await ctx.editMessageText(confirmMove(current?.name ?? existing.guildSlug, guild.name), {
+            parse_mode: "HTML",
+            reply_markup: moveOrStayKeyboard(
+              guild.slug,
+              guild.name,
+              current?.name ?? existing.guildSlug,
+            ),
+          });
+          return;
+        }
+        await ctx.editMessageText(alreadyRegistered(current?.name ?? existing.guildSlug), {
+          parse_mode: "HTML",
+        });
         return;
       }
       await registerAndAsk(ctx, sql, guild.slug, true);
@@ -99,15 +136,15 @@ export function installRegistration(bot: Bot, sql: Sql): void {
     }
 
     if (callback.kind === "hour") {
-      await ctx.answerCallbackQuery(
-        callback.hour === null ? "Reminders off" : `Reminder set for ${callback.hour}:00`,
-      );
       const user = await findUser(sql, from.id);
-      if (!user) return;
+      if (!user) return void (await ctx.answerCallbackQuery());
       const guild = guildBySlug(user.guildSlug);
       const guildName = guild?.name ?? user.guildSlug;
 
       await setReminderHour(sql, from.id, callback.hour);
+      await ctx.answerCallbackQuery(
+        callback.hour === null ? TOAST_REMINDERS_OFF : toastReminderSet(callback.hour),
+      );
       await ctx.editMessageText(
         callback.hour === null ? reminderOff(guildName) : reminderSet(callback.hour, guildName),
         { parse_mode: "HTML" },
@@ -120,7 +157,7 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       const guild = guildBySlug(callback.slug);
       if (!guild) return void (await ctx.answerCallbackQuery());
       await moveUser(sql, from.id, guild.slug);
-      await ctx.answerCallbackQuery("Moved");
+      await ctx.answerCallbackQuery(TOAST_MOVED);
       await ctx.editMessageText(moved(guild.name), { parse_mode: "HTML" });
       return;
     }
@@ -129,7 +166,7 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       const user = await findUser(sql, from.id);
       const guild = user ? guildBySlug(user.guildSlug) : undefined;
       await ctx.answerCallbackQuery();
-      await ctx.editMessageText(stayed(guild?.name ?? "your guild"), { parse_mode: "HTML" });
+      await ctx.editMessageText(stayed(guild?.name ?? FALLBACK_GUILD), { parse_mode: "HTML" });
       return;
     }
 

@@ -28,10 +28,13 @@ export function welcome(firstName: string, guildName: string): string {
 /**
  * FR-4 requires a real choice with no silent default in either direction, and
  * SPEC.md section 6 requires the privacy notice at registration.
+ *
+ * The "change it any time" sentence is deliberately absent: /remind doesn't
+ * exist until Phase 3. Restore it there, alongside the command itself.
  */
 export function reminderSet(hour: number, guildName: string): string {
   return (
-    `Set for <b>${String(hour).padStart(2, "0")}:00</b>. Change it any time with /remind.\n\n` +
+    `Set for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +
     `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
     `Your first name and how much you move are visible to others in ${guildName}.`
   );
@@ -59,6 +62,15 @@ export function confirmMove(fromGuild: string, toGuild: string): string {
   );
 }
 
+/** The two buttons offered alongside confirmMove. */
+export function buttonMoveTo(guildName: string): string {
+  return `Move to ${guildName}`;
+}
+
+export function buttonStayIn(guildName: string): string {
+  return `Stay in ${guildName}`;
+}
+
 export function moved(guildName: string): string {
   return `Moved. You're counted for <b>${guildName}</b> now.`;
 }
@@ -66,6 +78,23 @@ export function moved(guildName: string): string {
 export function stayed(guildName: string): string {
   return `Fine. Still <b>${guildName}</b>.`;
 }
+
+export const TOAST_MOVED = "Moved";
+export const TOAST_REMINDERS_OFF = "Reminders off";
+
+export function toastReminderSet(hour: number): string {
+  return `Reminder set for ${hour}:00`;
+}
+
+/** Used when a guild lookup fails and the message still needs some name. */
+export const FALLBACK_GUILD = "your guild";
+
+/** FR-17, private-chat command menu. */
+export const COMMAND_DESCRIPTIONS = {
+  log: "Log today",
+  me: "My week",
+  standings: "Guild standings",
+} as const;
 
 export const UNDO_DONE = "Removed.";
 export const OUTSIDE_WINDOW =
