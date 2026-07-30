@@ -1,5 +1,92 @@
-// src/bot/reports.ts, replaced in full by Task 9
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { Sql } from "postgres";
+import { COMPETITION_START, WEEKLY_TARGET_MINUTES, guildBySlug } from "../config.ts";
+import { calendar } from "../db/calendar.ts";
+import { weekMinutes } from "../db/days.ts";
+import { neighbours, standings, weeklyTotals } from "../db/standings.ts";
+import { findUser } from "../db/users.ts";
+import { weeklyStreak } from "../domain/scoring.ts";
+import { meMessage, standingsMessage } from "./render.ts";
+import { decode } from "./callbacks.ts";
+import { NOT_REGISTERED } from "../strings.ts";
 
-export function installReports(_bot: Bot, _sql: Sql): void {}
+/** FR-14. Read-only: this path performs no write of any kind. */
+async function replyMe(ctx: Context, sql: Sql, telegramId: number): Promise<void> {
+  const user = await findUser(sql, telegramId);
+  if (!user) {
+    await ctx.reply(NOT_REGISTERED);
+    return;
+  }
+
+  const { today, weekStart } = await calendar(sql);
+  const [minutes, totals, week, around] = await Promise.all([
+    weekMinutes(sql, telegramId, weekStart),
+    weeklyTotals(sql, telegramId),
+    standings(sql, weekStart, today),
+    neighbours(sql, telegramId, user.guildSlug, weekStart, today),
+  ]);
+
+  // users.guild_slug carries a foreign key onto guilds.slug, and standings()
+  // selects FROM guilds, so the user's own guild is always one of these rows.
+  // A miss here would mean the two tables have drifted apart, which is a bug
+  // worth surfacing loudly (bot.catch logs it and the update simply fails)
+  // rather than papering over with a guessed rank that renders as a
+  // plausible but false number.
+  const index = week.findIndex((row) => row.slug === user.guildSlug);
+  if (index === -1) {
+    throw new Error(`guild "${user.guildSlug}" missing from standings`);
+  }
+
+  const guild = guildBySlug(user.guildSlug);
+
+  await ctx.reply(
+    meMessage({
+      weekMinutes: minutes,
+      target: WEEKLY_TARGET_MINUTES,
+      streak: weeklyStreak(totals, weekStart),
+      guildName: guild?.name ?? user.guildSlug,
+      guildRank: index + 1,
+      guildCount: week.length,
+      neighbours: around,
+    }),
+    { parse_mode: "HTML" },
+  );
+}
+
+/** FR-16. The weekly table first, then the season, both per member. */
+async function replyStandings(ctx: Context, sql: Sql): Promise<void> {
+  const { today, weekStart } = await calendar(sql);
+  const [week, season] = await Promise.all([
+    standings(sql, weekStart, today),
+    standings(sql, COMPETITION_START, today),
+  ]);
+  await ctx.reply(standingsMessage({ week, season }), { parse_mode: "HTML" });
+}
+
+export function installReports(bot: Bot, sql: Sql): void {
+  bot.command("me", async (ctx) => {
+    if (!ctx.from) return;
+    await replyMe(ctx, sql, ctx.from.id);
+  });
+
+  bot.command("standings", async (ctx) => {
+    await replyStandings(ctx, sql);
+  });
+
+  bot.on("callback_query:data", async (ctx, next) => {
+    const callback = decode(ctx.callbackQuery.data);
+    if (!callback || !ctx.from) return await next();
+
+    if (callback.kind === "me") {
+      await ctx.answerCallbackQuery();
+      await replyMe(ctx, sql, ctx.from.id);
+      return;
+    }
+    if (callback.kind === "standings") {
+      await ctx.answerCallbackQuery();
+      await replyStandings(ctx, sql);
+      return;
+    }
+    return await next();
+  });
+}
