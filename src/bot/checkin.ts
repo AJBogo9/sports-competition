@@ -21,6 +21,7 @@ import {
   TOAST_LOGGED,
   TOAST_REMOVED,
   UNDO_DONE,
+  UNDO_RESTORED,
 } from "../strings.ts";
 
 /**
@@ -84,10 +85,15 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       return;
     }
 
-    // Offered after an undo, to log the same day again.
+    // Offered after an undo, to log the same day again. The prompt must
+    // match the date being re-offered: after a backdated undo, callback.date
+    // is yesterday, and showing "Moved today?" while the buttons commit to
+    // yesterday would let the user believe a yesterday write was for today.
     if (callback.kind === "checkin") {
       await ctx.answerCallbackQuery();
-      await ctx.editMessageText(CHECK_IN_PROMPT, {
+      const { today } = await calendar(sql);
+      const prompt = callback.date === today ? CHECK_IN_PROMPT : CHECK_IN_PROMPT_YESTERDAY;
+      await ctx.editMessageText(prompt, {
         parse_mode: "HTML",
         reply_markup: checkInKeyboard(callback.date, null),
       });
@@ -124,6 +130,22 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
     }
 
     if (callback.kind === "undo") {
+      const user = await findUser(sql, from.id);
+      if (!user) {
+        await ctx.answerCallbackQuery(NOT_REGISTERED);
+        return;
+      }
+
+      // FR-26. The same guard as the log path: callback data is not
+      // guaranteed well-formed, and this must not write outside the
+      // competition window even though the official client never offers an
+      // undo button for a date it wouldn't have let you log.
+      if (!isInWindow(callback.date)) {
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(OUTSIDE_WINDOW);
+        return;
+      }
+
       // FR-9. Restores the displaced tier when the log overwrote one, so the
       // exact prior weekly total comes back rather than merely vanishing.
       await undoDay(sql, from.id, callback.date, callback.restore);
@@ -131,8 +153,11 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
 
       const weekStart = await weekStartOf(sql, callback.date);
       const minutes = await weekMinutes(sql, from.id, weekStart);
+      // A restore leaves the previous tier's minutes still counted below, so
+      // saying "Removed." there would contradict the progress block.
+      const message = callback.restore === null ? UNDO_DONE : UNDO_RESTORED;
       await ctx.editMessageText(
-        `${UNDO_DONE}\n\n${progressBlock(minutes, WEEKLY_TARGET_MINUTES)}`,
+        `${message}\n\n${progressBlock(minutes, WEEKLY_TARGET_MINUTES)}`,
         {
           parse_mode: "HTML",
           reply_markup: new InlineKeyboard()

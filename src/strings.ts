@@ -117,6 +117,13 @@ export const COMMAND_DESCRIPTIONS = {
 } as const;
 
 export const UNDO_DONE = "Removed.";
+/**
+ * Shown instead of UNDO_DONE when undo restored a displaced tier rather than
+ * deleting the day outright, so the message doesn't claim the entry is gone
+ * while the progress block below still counts it. Provisional wording,
+ * chosen rather than asked; easy to reword since all copy lives here.
+ */
+export const UNDO_RESTORED = "Put back.";
 export const OUTSIDE_WINDOW =
   "That date is outside the competition, so it wouldn't count. Nothing was saved.";
 export const NOT_REGISTERED =
