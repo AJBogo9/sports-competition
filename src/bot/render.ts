@@ -14,7 +14,8 @@ export function progressBlock(minutes: number, target: number): string {
 function tail(minutes: number, target: number): string {
   const left = target - minutes;
   if (left <= 0) return "Target hit.";
-  if (left <= 22) return "One more session does it.";
+  // 45 is the medium tier's value, from the design mockup at prototype/bot-flows.html:1009
+  if (left <= 45) return "One more session does it.";
   return `${left} minutes to go.`;
 }
 

@@ -21,11 +21,16 @@ describe("confirmation (FR-12)", () => {
   });
 
   test("says how much is left when the target is not yet met", () => {
-    expect(confirmation("medium", 112, 150)).toContain("38 minutes to go");
+    expect(confirmation("short", 67, 150)).toContain("83 minutes to go");
   });
 
   test("nudges rather than counts when the gap is small", () => {
     expect(confirmation("short", 130, 150)).toContain("One more session");
+  });
+
+  test("the nudge fires exactly at a gap of one medium session", () => {
+    expect(confirmation("short", 105, 150)).toContain("One more session");   // left = 45
+    expect(confirmation("short", 104, 150)).toContain("46 minutes to go");   // left = 46
   });
 
   test("congratulates once the target is met", () => {
