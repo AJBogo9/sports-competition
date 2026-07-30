@@ -10,7 +10,9 @@ with a deliberately tighter scope.
 
 ## Design
 
-[Design document](docs/superpowers/specs/2026-07-30-guild-activity-competition-design.md)
+- [Design document](docs/superpowers/specs/2026-07-30-guild-activity-competition-design.md)
+- [Evidence base](docs/evidence.md) — full citations, exact reported figures, transfer caveats, and
+  the claims that did not survive checking
 
 The short version:
 
