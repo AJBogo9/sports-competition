@@ -53,13 +53,53 @@ describe("calendar", () => {
     expect(await weekStartOf(sql, "2026-08-03")).toBe("2026-08-03");
   });
 
-  // Design 4.2. The clock changes on Sunday 25 October 2026, inside a window
-  // that an autumn competition could easily span. A week boundary computed by
-  // adding 7 times 24 hours would drift an hour across it.
-  test("week boundaries survive the 25 October 2026 clock change", async () => {
+  // weekStartOf operates on naive dates without timezone conversion, so DST
+  // cannot affect it. This test just verifies the naive date logic itself is
+  // correct across the clock change dates.
+  test("maps every day of a week to its ISO Monday, including across a clock change", async () => {
     expect(await weekStartOf(sql, "2026-10-24")).toBe("2026-10-19");
     expect(await weekStartOf(sql, "2026-10-25")).toBe("2026-10-19");
     expect(await weekStartOf(sql, "2026-10-26")).toBe("2026-10-26");
+  });
+
+  // Design 4.2: Postgres owns the calendar with real timezone database
+  // conversion. These tests pin specific UTC instants and verify they convert
+  // to the correct date in Europe/Helsinki timezone.
+
+  test("a late-evening UTC instant is already the next day in Helsinki", async () => {
+    // 2026-07-30T22:30:00Z is 01:30 on 2026-07-31 in Helsinki (UTC+3).
+    // A UTC-based server would report 2026-07-30 and put the log on the wrong day.
+    const { today, yesterday } = await calendar(sql, "2026-07-30T22:30:00Z");
+    expect(today).toBe("2026-07-31");
+    expect(yesterday).toBe("2026-07-30");
+  });
+
+  test("UTC offset genuinely differs across the clock change", async () => {
+    // 22:30Z becomes 01:30 local in July (UTC+3) but 00:30 local in October (UTC+2).
+    // Both should report the correct local dates.
+    const summerAt = "2026-07-30T22:30:00Z"; // 01:30 local on 31st
+    const fallAt = "2026-10-26T22:30:00Z";   // 00:30 local on 27th (after the change)
+
+    const { today: summerToday } = await calendar(sql, summerAt);
+    const { today: fallToday } = await calendar(sql, fallAt);
+
+    expect(summerToday).toBe("2026-07-31");
+    expect(fallToday).toBe("2026-10-27");
+  });
+
+  test("an instant on the changeover day buckets to the right Monday", async () => {
+    // 2026-10-25T00:30:00Z is 03:30 on Sunday 2026-10-25 in Helsinki,
+    // which belongs to the week starting Monday 2026-10-19.
+    const { weekStart } = await calendar(sql, "2026-10-25T00:30:00Z");
+    expect(weekStart).toBe("2026-10-19");
+  });
+
+  test("omitting the time parameter reads the live clock", async () => {
+    // No second argument: should use now() and return valid dates.
+    const { today, weekStart } = await calendar(sql);
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(weekStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(weekStart <= today).toBe(true);
   });
 });
 

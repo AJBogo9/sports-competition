@@ -17,10 +17,14 @@ export interface Calendar {
  *
  * Everything is cast to ::text because postgres.js otherwise returns DATE as a
  * Date object at UTC midnight, which shifts under formatting.
+ *
+ * The optional `at` parameter is for testing only: it pins a fixed instant
+ * instead of reading the live clock. Production callers pass nothing and get
+ * now() exactly as before.
  */
-export async function calendar(sql: Sql): Promise<Calendar> {
+export async function calendar(sql: Sql, at: string | null = null): Promise<Calendar> {
   const [row] = await sql<{ today: string; yesterday: string; week_start: string }[]>`
-    WITH local AS (SELECT (now() AT TIME ZONE ${TIMEZONE}) AS ts)
+    WITH local AS (SELECT (COALESCE(${at}::timestamptz, now()) AT TIME ZONE ${TIMEZONE}) AS ts)
     SELECT (ts)::date::text                              AS today,
            (ts::date - INTERVAL '1 day')::date::text     AS yesterday,
            date_trunc('week', ts)::date::text            AS week_start
