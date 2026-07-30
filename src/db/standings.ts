@@ -32,6 +32,12 @@ export interface Neighbour {
  * fire in Phase 1, because nothing sets `blocked` until FR-23 lands in Phase 3.
  * Revisit it then: it currently erases a blocked user's past activity from
  * their guild's total, which is a different thing from not messaging them.
+ *
+ * The ORDER BY ends with g.slug as a tiebreaker to guarantee total ordering.
+ * Guild names (g.name) are not unique in the schema, only slugs are the primary
+ * key. Without this tiebreaker, Postgres could return guilds in arbitrary order
+ * when two have identical per-member scores, leading to non-deterministic results
+ * across successive calls.
  */
 export async function standings(
   sql: Sql,
@@ -52,7 +58,7 @@ export async function standings(
                     AND d.date BETWEEN ${from}::date AND ${to}::date
     LEFT JOIN tier_minutes t ON t.tier = d.tier
     GROUP BY g.slug, g.name, g.member_count
-    ORDER BY "perMember" DESC, g.name ASC
+    ORDER BY "perMember" DESC, g.name ASC, g.slug ASC
   `;
 }
 
@@ -61,6 +67,12 @@ export async function standings(
  * guild only. This is the permitted half of the requirement: there is no query
  * anywhere that returns a top-N list of individuals, and the three-row cap is
  * what keeps it that way.
+ *
+ * The ROW_NUMBER() ORDER BY ends with telegram_id as a tiebreaker to guarantee
+ * total ordering. First names are not unique: two users named "Alex" who have
+ * both logged nothing are an ordinary occurrence in a 650-member guild. Without
+ * this tiebreaker, Postgres could assign different ranks across successive calls,
+ * so the same user might get different neighbours on invocation 1 vs invocation 2.
  */
 export async function neighbours(
   sql: Sql,
@@ -86,7 +98,7 @@ export async function neighbours(
       GROUP BY u.telegram_id, u.first_name
     ), ranked AS (
       SELECT telegram_id, first_name, minutes,
-             ROW_NUMBER() OVER (ORDER BY minutes DESC, first_name ASC) AS rank
+             ROW_NUMBER() OVER (ORDER BY minutes DESC, first_name ASC, telegram_id ASC) AS rank
       FROM totals
     ), me AS (
       SELECT rank FROM ranked WHERE telegram_id = ${telegramId}

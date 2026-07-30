@@ -141,6 +141,34 @@ describe("neighbours (FR-15)", () => {
     expect(self?.firstName).toBe("Far");
     expect(self?.minutes).toBe(0);
   });
+
+  test("ordering is deterministic when two users tie on minutes and name", async () => {
+    // Two users with the same first name and same minutes (0, since they log
+    // nothing). Without telegram_id as a tiebreaker in ORDER BY, Postgres could
+    // return them in different order on successive calls, breaking /me consistency.
+    await createUser(sql, { telegramId: 10, guildSlug: "prodeko", firstName: "Alex" });
+    await createUser(sql, { telegramId: 11, guildSlug: "prodeko", firstName: "Alex" });
+
+    const call1 = await neighbours(sql, 10, "prodeko", WEEK_FROM, WEEK_TO);
+    const call2 = await neighbours(sql, 10, "prodeko", WEEK_FROM, WEEK_TO);
+
+    // Results must be identical across calls: same rows in same order, proving
+    // the ordering is deterministic (not dependent on Postgres' arbitrary choice
+    // when all sort keys are equal).
+    expect(call1).toEqual(call2);
+
+    // Exactly one row must be marked isSelf, the one with telegram_id 10.
+    expect(call1.filter((r) => r.isSelf)).toHaveLength(1);
+    expect(call1.find((r) => r.isSelf)?.firstName).toBe("Alex");
+
+    // With telegram_id as the final tiebreaker, when Alex (10) and Alex (11)
+    // both score 0 with the same first name, the lower telegram_id (10) must
+    // rank before the higher telegram_id (11). In the window, this appears as
+    // the isSelf row being before any higher-id peers.
+    const selfIndex = call1.findIndex((r) => r.isSelf);
+    const alexRows = call1.filter((r) => r.firstName === "Alex");
+    expect(alexRows[0]?.isSelf).toBe(true);
+  });
 });
 
 describe("weeklyTotals", () => {
