@@ -94,6 +94,33 @@ describe("calendar", () => {
     expect(weekStart).toBe("2026-10-19");
   });
 
+  test("catches an implementation hardcoded to +2 (EET year-round)", async () => {
+    // 2026-10-24T21:00:00Z is exactly midnight local in Helsinki on that day,
+    // because the city is still on EEST (+3) on 24 October before the clock change.
+    // The correct result is today=2026-10-25 (just crossed midnight locally).
+    // A hardcoded +2 implementation would see 23:00 on 2026-10-24 local and give
+    // today=2026-10-24, failing the test. This UTC instant sits in the 21:00-22:00
+    // band where a one-hour offset difference is the sole reason to cross midnight.
+    const { today, yesterday, weekStart } = await calendar(sql, "2026-10-24T21:00:00Z");
+    expect(today).toBe("2026-10-25");
+    expect(yesterday).toBe("2026-10-24");
+    expect(weekStart).toBe("2026-10-19");
+  });
+
+  test("catches an implementation hardcoded to +3 (EEST year-round)", async () => {
+    // 2026-11-02T21:30:00Z is 23:30 local in Helsinki on 2026-11-02,
+    // because the city has switched to EET (+2) in November.
+    // The correct result is today=2026-11-02 (same day, not yet midnight).
+    // A hardcoded +3 implementation would see 00:30 on 2026-11-03 local and give
+    // today=2026-11-03, failing the test. This UTC instant also sits in the 21:00-22:00
+    // band where the offset change matters. 2026-11-02 is a Monday, so weekStart
+    // equals today.
+    const { today, yesterday, weekStart } = await calendar(sql, "2026-11-02T21:30:00Z");
+    expect(today).toBe("2026-11-02");
+    expect(yesterday).toBe("2026-11-01");
+    expect(weekStart).toBe("2026-11-02");
+  });
+
   test("omitting the time parameter reads the live clock", async () => {
     // No second argument: should use now() and return valid dates.
     const { today, weekStart } = await calendar(sql);
