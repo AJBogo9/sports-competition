@@ -223,8 +223,11 @@ ORDER BY avg_points DESC;
 
 - `guild_slug` is a real foreign key. The predecessor used an unconstrained `VARCHAR` validated in
   application code.
-- No dedup index. The predecessor's caused false rejections. Accidental double-taps are handled in
-  the interaction layer instead, by disabling the confirm button after the first press.
+- No dedup index. The predecessor's caused false rejections of legitimate repeat activities.
+  Accidental double-taps are prevented in the interaction layer instead: pressing a duration button
+  is the commit, and it immediately rewrites that message into the confirmation, so the duration
+  keyboard no longer exists to be pressed a second time. A stale callback arriving after the rewrite
+  is answered and ignored.
 - Membership counts live in `guilds` and are seeded from config. They are the per-capita
   denominator, so changing one mid-competition changes every historical comparison. Changes should
   be deliberate and announced.
