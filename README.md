@@ -29,7 +29,8 @@ are the only open question ([SPEC.md](SPEC.md) §9), and they block only the con
 - **Bot only, long polling.** No web app, no domain, no TLS, no inbound ports. It runs on a home
   server or a small VPS.
 
-Roughly 800 to 1,000 lines, two containers, one machine.
+Roughly 1,300 lines of logic, two containers, one machine. See [SPEC.md](SPEC.md) NFR-6 for the
+breakdown.
 
 ## Relationship to the earlier bot
 

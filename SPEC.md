@@ -461,8 +461,33 @@ without a real user action MUST NOT exist in a production build. See defect 3 in
 **NFR-5. Restart safety.** All state lives in PostgreSQL. Restarting the process mid-competition
 MUST lose nothing, and Telegram's 24-hour update retention covers the gap.
 
-**NFR-6. Size.** Target roughly 800 to 1,000 lines. If it passes 1,500, something in section 8 has
-crept back in.
+**NFR-6. Size.** Expect roughly **1,300 lines of application logic** (non-blank, non-comment), or
+about 1,800 raw, plus 250 to 350 lines of tests and around 120 lines of deployment configuration.
+
+Estimated bottom-up against section 5 and calibrated against the predecessor, whose `src/`
+tree measures 3,163 effective lines for a system with no reminders, no group-chat presence and no
+weekly reset, but with a seven-step wizard, a four-level activity hierarchy, profile and history
+menus, a caching layer and an API server.
+
+| Area | Effective lines |
+|---|---|
+| Config: guilds, window, tiers, target | 70 |
+| English strings | 110 |
+| Schema, connection, migrations | 105 |
+| Queries: users, days, standings, streak, neighbours | 170 |
+| Bot core: polling, shutdown, command scopes, callback router | 150 |
+| Registration (FR-1 to FR-4) | 100 |
+| Check-in (FR-5 to FR-11) | 140 |
+| Renderers: progress, `/me`, standings, posts (FR-12 to FR-16) | 160 |
+| Group chat (FR-18 to FR-20) | 120 |
+| Reminders (FR-21 to FR-24) | 180 |
+
+**Phase 1 alone is roughly 900 effective lines**, since it carries the config, schema, bot core and
+both main flows. Phases 2 to 4 add about 150, 180 and 120.
+
+If the total passes **2,000**, something from section 8 has crept back in. An earlier draft of this
+requirement said 800 to 1,000, which was a guess made before reminders with a follow-up, dual
+weekly and season standings, streaks and tags were added.
 
 ---
 
