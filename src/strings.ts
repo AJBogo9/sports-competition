@@ -1,4 +1,4 @@
-import type { Tier } from "./config.ts";
+import { WEEKLY_TARGET_MINUTES, type Tier } from "./config.ts";
 
 export const TIER_LABELS: Record<Tier, string> = {
   short: "15 to 30 min",
@@ -32,7 +32,7 @@ export function welcome(firstName: string, guildName: string): string {
 export function reminderSet(hour: number, guildName: string): string {
   return (
     `Set for <b>${String(hour).padStart(2, "0")}:00</b>. Change it any time with /remind.\n\n` +
-    "Target is <b>150 minutes a week</b>, the WHO guideline. That's about four sessions.\n\n" +
+    `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
     `Your first name and how much you move are visible to others in ${guildName}.`
   );
 }
@@ -40,7 +40,7 @@ export function reminderSet(hour: number, guildName: string): string {
 export function reminderOff(guildName: string): string {
   return (
     "No reminders. Log whenever you like with /log.\n\n" +
-    "Target is <b>150 minutes a week</b>, the WHO guideline. That's about four sessions.\n\n" +
+    `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
     `Your first name and how much you move are visible to others in ${guildName}.`
   );
 }

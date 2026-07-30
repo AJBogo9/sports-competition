@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { confirmation, meMessage, progressBlock, standingsMessage } from "../../src/bot/render.ts";
+import { reminderOff, reminderSet } from "../../src/strings.ts";
+import { WEEKLY_TARGET_MINUTES } from "../../src/config.ts";
 
 describe("progressBlock (FR-12)", () => {
   test("shows minutes against the target with a bar, as in the prototype", () => {
@@ -130,5 +132,12 @@ describe("standingsMessage (FR-16)", () => {
     const message = standingsMessage({ week, season });
     expect(message).toMatch(/1\s+Inkubio/);
     expect(message).toMatch(/2\s+Prodeko/);
+  });
+});
+
+describe("registration copy", () => {
+  test("the registration copy quotes the configured target, not a literal", () => {
+    expect(reminderSet(20, "Prodeko")).toContain(`${WEEKLY_TARGET_MINUTES} minutes a week`);
+    expect(reminderOff("Prodeko")).toContain(`${WEEKLY_TARGET_MINUTES} minutes a week`);
   });
 });

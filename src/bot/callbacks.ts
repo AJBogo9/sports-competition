@@ -6,7 +6,7 @@ import type { Tier } from "../config.ts";
  * restart still works and the process holds no session state (NFR-5).
  *
  * Telegram rejects callback_data over 64 bytes. The longest payload here is an
- * undo carrying a date and a displaced tier, at 27 bytes.
+ * undo carrying a date and a displaced tier, at 22 bytes.
  */
 export type Callback =
   | { kind: "guild"; slug: string }
