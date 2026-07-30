@@ -1,29 +1,38 @@
 # Sports Competition
 
-A minimal Telegram bot for running a time-boxed physical-activity competition between student
-guilds, scored per capita on MET-hours.
+A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
+University student guilds. One tap per day, guilds ranked on minutes per member.
 
-Complete rewrite of [`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot),
-with a deliberately tighter scope.
+**Status:** specified, not started. Three questions in [SPEC.md](SPEC.md) §9 block implementation.
 
-**Status:** design and prototype. No implementation yet.
+## Start here
 
-## Design
+| Document | What it's for |
+|---|---|
+| **[SPEC.md](SPEC.md)** | The requirements. Numbered, testable, with a build order. This is the source of truth |
+| [docs/evidence.md](docs/evidence.md) | Primary citations for every design decision, with exact figures and the claims that did not survive checking |
+| [prototype/bot-flows.html](prototype/bot-flows.html) | Clickable mockup of every screen. Open it in a browser |
 
-- [Design document](docs/superpowers/specs/2026-07-30-guild-activity-competition-design.md)
-- [Evidence base](docs/evidence.md) — full citations, exact reported figures, transfer caveats, and
-  the claims that did not survive checking
+## The design in six lines
 
-The short version:
+- **One tap a day.** Three coarse duration tiers plus a rest day. No sport taxonomy, so there is
+  nothing to argue about.
+- **The message comes to you** at an hour you choose, and silences itself after five ignores.
+  Forgetting is the failure that ends these competitions, not friction.
+- **A weekly target of 150 minutes**, taken from the WHO guideline, so there is a win available to
+  everyone that does not require beating anyone.
+- **Guilds ranked per member across the whole roster**, weekly and cumulative, so last place is
+  never permanent.
+- **Nothing is ever totalled and stored.** The database records what the user tapped; every number
+  is derived at read time, so corrections and rule changes recompute for free.
+- **Bot only, long polling.** No web app, no domain, no TLS, no inbound ports. It runs on a home
+  server or a small VPS.
 
-- **Bot only.** No Mini App, no web app. Long polling, so the process needs no inbound
-  connectivity, no domain, no TLS and no public HTTPS endpoint.
-- **Points are never stored.** Activities record the MET value and duration used at logging time;
-  points are derived at read time. Deletes, edits and MET corrections all recompute for free.
-- **Per-capita guild ranking** against total guild membership, so guilds win by getting more people
-  moving rather than by recruiting the already-active.
-- **One tap to register** via `t.me/<bot>?start=<guild>` deep links, **two taps to log** an activity.
-- **The group chat is the engagement loop:** a silently-updated pinned leaderboard plus a weekly
-  post that notifies.
+Roughly 800 to 1,000 lines, two containers, one machine.
 
-Roughly 700 to 900 lines, two containers, one small machine.
+## Relationship to the earlier bot
+
+This replaces [`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot) and was
+designed from scratch rather than derived from it. [SPEC.md](SPEC.md) §2 records the specific
+defects worth not repeating, and §8 records the alternatives that were rejected and why. Read §8
+before re-adding anything that seems obviously missing.

@@ -1,7 +1,6 @@
 # Evidence base
 
-Primary sources for the design decisions in
-[the design document](superpowers/specs/2026-07-30-guild-activity-competition-design.md).
+Primary sources for the design decisions in [the specification](../SPEC.md).
 
 Each entry gives the full citation, what the study actually did, the numbers as reported, what we
 changed because of it, and how far it transfers to our context. Section 3 lists claims that did
