@@ -55,8 +55,9 @@ export function meMessage(input: MeInput): string {
     const weeks = input.streak === 1 ? "week" : "weeks";
     lines.push(`Streak       ${input.streak} ${weeks} at target`);
   }
+  // guildName comes from config.ts and is trusted today; escaped defensively.
   lines.push(
-    `Guild        ${input.guildName}, ${ordinal(input.guildRank)} of ${input.guildCount} this week`,
+    `Guild        ${escapeHtml(input.guildName)}, ${ordinal(input.guildRank)} of ${input.guildCount} this week`,
   );
 
   let message = `<pre>${lines.join("\n")}</pre>`;
@@ -83,8 +84,15 @@ export interface StandingsInput {
 
 function table(rows: readonly GuildStanding[]): string {
   return rows
-    .map((row, index) =>
-      `${String(index + 1).padStart(2)}  ${row.name.padEnd(18)}${row.perMember.toFixed(1)}`)
+    .map((row, index) => {
+      // guild names come from config.ts and are trusted today; escaped
+      // defensively. Pad the raw name first, then escape: an escape
+      // sequence like &amp; renders as one character, so padding after
+      // escaping would count those extra source bytes as column width and
+      // misalign the table.
+      const name = escapeHtml(row.name.padEnd(18));
+      return `${String(index + 1).padStart(2)}  ${name}${row.perMember.toFixed(1)}`;
+    })
     .join("\n");
 }
 

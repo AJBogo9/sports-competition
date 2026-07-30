@@ -38,19 +38,21 @@ export function welcome(firstName: string, guildName: string): string {
  * The "change it any time" sentence is deliberately absent: /remind doesn't
  * exist until Phase 3. Restore it there, alongside the command itself.
  */
+/** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function reminderSet(hour: number, guildName: string): string {
   return (
     `Set for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +
     `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
-    `Your first name and how much you move are visible to others in ${guildName}.`
+    `Your first name and how much you move are visible to others in ${escapeHtml(guildName)}.`
   );
 }
 
+/** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function reminderOff(guildName: string): string {
   return (
     "No reminders. Log whenever you like with /log.\n\n" +
     `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
-    `Your first name and how much you move are visible to others in ${guildName}.`
+    `Your first name and how much you move are visible to others in ${escapeHtml(guildName)}.`
   );
 }
 

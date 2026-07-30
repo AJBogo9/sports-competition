@@ -102,8 +102,10 @@ describe("meMessage (FR-14)", () => {
 });
 
 // Telegram first names are attacker-controlled, and the neighbours block is
-// the one place another user's name reaches your own /me output.
-describe("meMessage neighbour name escaping (security)", () => {
+// the one place another user's name reaches your own /me output. The Guild
+// line's name comes from config.ts and is trusted today, but is escaped
+// defensively for the same reason as the guild-name functions in strings.ts.
+describe("meMessage name escaping (security)", () => {
   const input = {
     weekMinutes: 112,
     target: 150,
@@ -175,6 +177,11 @@ describe("meMessage neighbour name escaping (security)", () => {
     });
     expect(message).toContain(`  ${paddedThenEscaped}   5 min`);
   });
+
+  test("escapes an ampersand in the guild name on the Guild line too", () => {
+    const message = meMessage({ ...input, guildName: "A & B" });
+    expect(message).toContain("A &amp; B");
+  });
 });
 
 describe("standingsMessage (FR-16)", () => {
@@ -209,6 +216,19 @@ describe("standingsMessage (FR-16)", () => {
     expect(message).toMatch(/1\s+Inkubio/);
     expect(message).toMatch(/2\s+Prodeko/);
   });
+
+  // /standings is the most-used message in the product and renders every
+  // guild's name, so one bad character in config would break it for
+  // everyone at once. Guild names come from config.ts and are trusted
+  // today; escaped defensively regardless (security).
+  test("escapes an ampersand in a guild name, which would otherwise trigger Telegram's silent 400 for everyone", () => {
+    const message = standingsMessage({
+      week: [{ slug: "amp", name: "A & B", minutes: 1000, perMember: 10 }],
+      season: [{ slug: "amp", name: "A & B", minutes: 5000, perMember: 50 }],
+    });
+    expect(message).toContain("A &amp; B");
+    expect(message).not.toMatch(/&(?!amp;)/);
+  });
 });
 
 describe("registration copy", () => {
@@ -229,5 +249,13 @@ describe("registration copy", () => {
     const message = welcome("<i>Eve</i>", "Prodeko");
     expect(message).toContain("&lt;i&gt;Eve&lt;/i&gt;");
     expect(message).not.toContain("<i>Eve</i>");
+  });
+
+  // Guild names come from config.ts and are trusted today; escaped
+  // defensively so a future guild named e.g. "X & Y" cannot silently make
+  // Telegram reject the whole message with a 400 (security).
+  test("escapes an ampersand in the guild name in both reminder messages", () => {
+    expect(reminderSet(20, "A & B")).toContain("A &amp; B");
+    expect(reminderOff("A & B")).toContain("A &amp; B");
   });
 });
