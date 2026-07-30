@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { confirmation, meMessage, progressBlock, standingsMessage } from "../../src/bot/render.ts";
-import { reminderOff, reminderSet } from "../../src/strings.ts";
+import { reminderOff, reminderSet, welcome } from "../../src/strings.ts";
 import { WEEKLY_TARGET_MINUTES } from "../../src/config.ts";
 
 describe("progressBlock (FR-12)", () => {
@@ -101,6 +101,82 @@ describe("meMessage (FR-14)", () => {
   });
 });
 
+// Telegram first names are attacker-controlled, and the neighbours block is
+// the one place another user's name reaches your own /me output.
+describe("meMessage neighbour name escaping (security)", () => {
+  const input = {
+    weekMinutes: 112,
+    target: 150,
+    streak: 3,
+    guildName: "Prodeko",
+    guildRank: 2,
+    guildCount: 9,
+    neighbours: [
+      { firstName: "Sanna", minutes: 134, isSelf: false },
+      { firstName: "Andreas", minutes: 112, isSelf: true },
+      { firstName: "Otto", minutes: 98, isSelf: false },
+    ],
+  };
+
+  test("escapes a tag in a neighbour's name rather than rendering it live", () => {
+    const message = meMessage({
+      ...input,
+      neighbours: [
+        { firstName: "<b>Evil</b>", minutes: 100, isSelf: false },
+        { firstName: "Andreas", minutes: 112, isSelf: true },
+      ],
+    });
+    expect(message).toContain("&lt;b&gt;Evil&lt;/b&gt;");
+    expect(message).not.toContain("<b>Evil</b>");
+  });
+
+  test("escapes a bare ampersand, which would otherwise make Telegram reject the whole message", () => {
+    const message = meMessage({
+      ...input,
+      neighbours: [
+        { firstName: "A & B", minutes: 100, isSelf: false },
+        { firstName: "Andreas", minutes: 112, isSelf: true },
+      ],
+    });
+    expect(message).toContain("A &amp; B");
+  });
+
+  test("a name of </pre> does not close the surrounding pre block early", () => {
+    const message = meMessage({
+      ...input,
+      neighbours: [
+        { firstName: "</pre>", minutes: 100, isSelf: false },
+        { firstName: "Andreas", minutes: 112, isSelf: true },
+      ],
+    });
+    // Exactly the two legitimate closes (the header block and the
+    // neighbours block); an unescaped name would add a third.
+    const closingTags = message.match(/<\/pre>/g) ?? [];
+    expect(closingTags.length).toBe(2);
+  });
+
+  test("pads the raw name before escaping, so the minutes column still lines up", () => {
+    const rawName = "<b>";
+    // Computed independently of src/html.ts: pad the raw 3-character name to
+    // width 10 first, then escape. If escaping happened before padding,
+    // "&lt;b&gt;" (already 9 characters) would only gain one more space, and
+    // this exact fragment would not appear.
+    const paddedThenEscaped = rawName
+      .padEnd(10)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const message = meMessage({
+      ...input,
+      neighbours: [
+        { firstName: rawName, minutes: 5, isSelf: false },
+        { firstName: "Andreas", minutes: 112, isSelf: true },
+      ],
+    });
+    expect(message).toContain(`  ${paddedThenEscaped}   5 min`);
+  });
+});
+
 describe("standingsMessage (FR-16)", () => {
   const week = [
     { slug: "inkubio", name: "Inkubio", minutes: 9640, perMember: 24.1 },
@@ -146,5 +222,12 @@ describe("registration copy", () => {
   test("Phase 1 copy never points at the not-yet-existing /remind command", () => {
     expect(reminderSet(20, "Prodeko")).not.toContain("/remind");
     expect(reminderOff("Prodeko")).not.toContain("/remind");
+  });
+
+  // Telegram first names are attacker-controlled (security).
+  test("welcome() escapes HTML in the first name rather than rendering it live", () => {
+    const message = welcome("<i>Eve</i>", "Prodeko");
+    expect(message).toContain("&lt;i&gt;Eve&lt;/i&gt;");
+    expect(message).not.toContain("<i>Eve</i>");
   });
 });

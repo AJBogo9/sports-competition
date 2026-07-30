@@ -1,4 +1,5 @@
 import { WEEKLY_TARGET_MINUTES, type Tier } from "./config.ts";
+import { escapeHtml } from "./html.ts";
 
 export const TIER_LABELS: Record<Tier, string> = {
   short: "15 to 30 min",
@@ -17,9 +18,14 @@ export const BUTTON_REMINDER_OFF = "No, I'll remember";
 
 export const REMINDER_HOURS = [17, 18, 20, 21] as const;
 
+/**
+ * firstName is attacker-controlled (a Telegram display name); guildName comes
+ * from config.ts and is trusted today, but is escaped defensively so a future
+ * guild legitimately named something like "X & Y" cannot break this message.
+ */
 export function welcome(firstName: string, guildName: string): string {
   return (
-    `Moi ${firstName}. You're in, for <b>${guildName}</b>.\n\n` +
+    `Moi ${escapeHtml(firstName)}. You're in, for <b>${escapeHtml(guildName)}</b>.\n\n` +
     "One tap a day, that's it. Most people forget by week three unless " +
     "something asks, so: should I?"
   );
@@ -50,19 +56,26 @@ export function reminderOff(guildName: string): string {
 
 export const CHOOSE_GUILD = "Which guild are you in?";
 
+/** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function alreadyRegistered(guildName: string): string {
-  return `You're already counted for <b>${guildName}</b>.`;
+  return `You're already counted for <b>${escapeHtml(guildName)}</b>.`;
 }
 
+/** Both names come from config.ts and are trusted today; escaped defensively. */
 export function confirmMove(fromGuild: string, toGuild: string): string {
   return (
-    `You're currently counted for <b>${fromGuild}</b>. ` +
-    `Move to <b>${toGuild}</b>?\n\n` +
+    `You're currently counted for <b>${escapeHtml(fromGuild)}</b>. ` +
+    `Move to <b>${escapeHtml(toGuild)}</b>?\n\n` +
     "Everything you've logged stays with you."
   );
 }
 
-/** The two buttons offered alongside confirmMove. */
+/**
+ * The two buttons offered alongside confirmMove. Button labels are plain
+ * text on Telegram's side (no parse_mode ever applies to inline keyboard
+ * buttons), so escaping here would show a literal "&amp;" on the button
+ * instead of "&". Left unescaped by design.
+ */
 export function buttonMoveTo(guildName: string): string {
   return `Move to ${guildName}`;
 }
@@ -71,12 +84,14 @@ export function buttonStayIn(guildName: string): string {
   return `Stay in ${guildName}`;
 }
 
+/** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function moved(guildName: string): string {
-  return `Moved. You're counted for <b>${guildName}</b> now.`;
+  return `Moved. You're counted for <b>${escapeHtml(guildName)}</b> now.`;
 }
 
+/** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function stayed(guildName: string): string {
-  return `Fine. Still <b>${guildName}</b>.`;
+  return `Fine. Still <b>${escapeHtml(guildName)}</b>.`;
 }
 
 export const TOAST_MOVED = "Moved";

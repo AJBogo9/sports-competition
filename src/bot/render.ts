@@ -1,5 +1,6 @@
 import { progressBar, tierMinutes } from "../domain/scoring.ts";
 import { STANDINGS_FOOTER } from "../strings.ts";
+import { escapeHtml } from "../html.ts";
 import type { Tier } from "../config.ts";
 import type { GuildStanding, Neighbour } from "../db/standings.ts";
 
@@ -65,7 +66,10 @@ export function meMessage(input: MeInput): string {
   if (input.neighbours.length > 1) {
     const rows = input.neighbours.map((n) => {
       const name = n.isSelf ? "you" : n.firstName;
-      return `  ${name.padEnd(10)} ${String(n.minutes).padStart(3)} min`;
+      // Pad the raw name first, then escape: an escape sequence like &lt;
+      // renders as one character, so padding after escaping would count
+      // those extra source bytes as column width and misalign the table.
+      return `  ${escapeHtml(name.padEnd(10))} ${String(n.minutes).padStart(3)} min`;
     });
     message += `\n\n<b>Around you</b>\n<pre>${rows.join("\n")}</pre>`;
   }
