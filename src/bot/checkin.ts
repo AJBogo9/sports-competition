@@ -19,6 +19,7 @@ import {
   OUTSIDE_WINDOW,
   TIER_LABELS,
   TOAST_LOGGED,
+  TOAST_PUT_BACK,
   TOAST_REMOVED,
   UNDO_DONE,
   UNDO_RESTORED,
@@ -149,13 +150,15 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       // FR-9. Restores the displaced tier when the log overwrote one, so the
       // exact prior weekly total comes back rather than merely vanishing.
       await undoDay(sql, from.id, callback.date, callback.restore);
-      await ctx.answerCallbackQuery(TOAST_REMOVED);
+      const restored = callback.restore !== null;
+      await ctx.answerCallbackQuery(restored ? TOAST_PUT_BACK : TOAST_REMOVED);
 
       const weekStart = await weekStartOf(sql, callback.date);
       const minutes = await weekMinutes(sql, from.id, weekStart);
       // A restore leaves the previous tier's minutes still counted below, so
-      // saying "Removed." there would contradict the progress block.
-      const message = callback.restore === null ? UNDO_DONE : UNDO_RESTORED;
+      // saying "Removed." there (and in the toast above) would contradict the
+      // progress block.
+      const message = restored ? UNDO_RESTORED : UNDO_DONE;
       await ctx.editMessageText(
         `${message}\n\n${progressBlock(minutes, WEEKLY_TARGET_MINUTES)}`,
         {

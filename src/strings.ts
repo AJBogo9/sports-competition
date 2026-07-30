@@ -101,6 +101,9 @@ export const TOAST_MOVED = "Moved";
 export const TOAST_REMINDERS_OFF = "Reminders off";
 export const TOAST_LOGGED = "Logged";
 export const TOAST_REMOVED = "Removed";
+/** Provisional wording, paired with UNDO_RESTORED; easy to reword since all
+ *  copy lives here. */
+export const TOAST_PUT_BACK = "Put back";
 
 export function toastReminderSet(hour: number): string {
   return `Reminder set for ${hour}:00`;
