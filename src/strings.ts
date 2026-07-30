@@ -14,6 +14,7 @@ export const BUTTON_YESTERDAY = "Log yesterday instead";
 export const BUTTON_UNDO = "Undo";
 export const BUTTON_ME = "My week";
 export const BUTTON_STANDINGS = "Standings";
+export const BUTTON_LOG_AGAIN = "Log again";
 export const BUTTON_REMINDER_OFF = "No, I'll remember";
 
 export const REMINDER_HOURS = [17, 18, 20, 21] as const;
@@ -98,6 +99,8 @@ export function stayed(guildName: string): string {
 
 export const TOAST_MOVED = "Moved";
 export const TOAST_REMINDERS_OFF = "Reminders off";
+export const TOAST_LOGGED = "Logged";
+export const TOAST_REMOVED = "Removed";
 
 export function toastReminderSet(hour: number): string {
   return `Reminder set for ${hour}:00`;
