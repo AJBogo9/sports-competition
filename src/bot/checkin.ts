@@ -108,8 +108,12 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
         return;
       }
 
-      // FR-26. Nothing outside the competition window is ever written.
-      if (!isInWindow(callback.date)) {
+      // FR-26. Nothing outside the competition window is ever written, and
+      // neither is a day that has not happened yet: callback data is not
+      // guaranteed well-formed, even though the check-in UI only ever offers
+      // today and yesterday.
+      const { today } = await calendar(sql);
+      if (!isInWindow(callback.date) || callback.date > today) {
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(OUTSIDE_WINDOW);
         return;
@@ -139,9 +143,11 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
 
       // FR-26. The same guard as the log path: callback data is not
       // guaranteed well-formed, and this must not write outside the
-      // competition window even though the official client never offers an
-      // undo button for a date it wouldn't have let you log.
-      if (!isInWindow(callback.date)) {
+      // competition window, or for a day that has not happened yet, even
+      // though the official client never offers an undo button for a date
+      // it wouldn't have let you log.
+      const { today } = await calendar(sql);
+      if (!isInWindow(callback.date) || callback.date > today) {
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(OUTSIDE_WINDOW);
         return;

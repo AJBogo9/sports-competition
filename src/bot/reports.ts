@@ -64,11 +64,17 @@ async function replyStandings(ctx: Context, sql: Sql): Promise<void> {
 }
 
 export function installReports(bot: Bot, sql: Sql): void {
+  // SPEC.md 3.1: reporting happens in a private chat, not the group. /me's
+  // "Around you" block names other guild members, so answering it in a group
+  // would publish their first names and minutes to whoever is in that chat.
   bot.command("me", async (ctx) => {
-    if (!ctx.from) return;
+    if (ctx.chat.type !== "private" || !ctx.from) return;
     await replyMe(ctx, sql, ctx.from.id);
   });
 
+  // Deliberately unguarded, unlike /me above: /standings carries no personal
+  // data, only guild totals, and FR-17 wants it usable in the group chat too
+  // once Phase 2 adds one. Guarding it now would only have to be undone later.
   bot.command("standings", async (ctx) => {
     await replyStandings(ctx, sql);
   });
