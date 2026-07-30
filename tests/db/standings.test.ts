@@ -163,9 +163,10 @@ describe("neighbours (FR-15)", () => {
 
     // With telegram_id as the final tiebreaker, when Alex (10) and Alex (11)
     // both score 0 with the same first name, the lower telegram_id (10) must
-    // rank before the higher telegram_id (11). In the window, this appears as
-    // the isSelf row being before any higher-id peers.
+    // rank before the higher telegram_id (11). In the window (ranks 3-5: Otto,
+    // Alex(10), Alex(11)), the self row sits at index 1.
     const selfIndex = call1.findIndex((r) => r.isSelf);
+    expect(selfIndex).toBe(1);
     const alexRows = call1.filter((r) => r.firstName === "Alex");
     expect(alexRows[0]?.isSelf).toBe(true);
   });
