@@ -3,17 +3,15 @@
 <style>
   /* ---------------------------------------------------------------
      Design plan
-     Color   chalk / graphite achromatic ground. The ONLY saturated
-             colour on the page is meaningful: the four-step MET
-             intensity ramp (cool -> hot), whose hottest step doubles
-             as the interface accent. Telegram's own blue appears
-             only inside the device mock, where it belongs.
+     Color   chalk / graphite achromatic ground. The only saturated
+             colour is meaningful: a three-step effort ramp whose
+             hottest step doubles as the interface accent. Telegram's
+             blue appears only inside the device mock.
      Type    monospace as the display and data face (a results sheet
              is set in mono), system sans for running prose, and a
              Telegram-native stack inside the device.
      Layout  a timing sheet: a sticky device on the left, a stepped
-             commentary rail on the right, ruled full-width sections
-             below.
+             commentary rail on the right, ruled sections below.
      --------------------------------------------------------------- */
 
   :root {
@@ -25,7 +23,6 @@
     --rule:       #DCE0DA;
     --rule-soft:  #E7EAE4;
 
-    /* MET intensity ramp: light, moderate, vigorous, very vigorous */
     --met-1:      #5E8AA0;
     --met-2:      #6F9457;
     --met-3:      #C08A34;
@@ -33,7 +30,6 @@
     --accent:     var(--met-4);
     --accent-ink: #FFFFFF;
 
-    /* device */
     --tg-chrome:  #FFFFFF;
     --tg-wall:    #E4E7E0;
     --tg-in:      #FFFFFF;
@@ -58,28 +54,16 @@
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --paper:      #14181A;
-      --paper-2:    #1B2023;
-      --ink:        #E4E8E2;
-      --ink-soft:   #B4BCBB;
-      --muted:      #8A9497;
-      --rule:       #2A3134;
+      --paper:      #14181A;  --paper-2:    #1B2023;
+      --ink:        #E4E8E2;  --ink-soft:   #B4BCBB;
+      --muted:      #8A9497;  --rule:       #2A3134;
       --rule-soft:  #21272A;
-
-      --met-1:      #7FB0C6;
-      --met-2:      #93BC77;
-      --met-3:      #DFAA55;
-      --met-4:      #E0714C;
+      --met-1: #7FB0C6; --met-2: #93BC77; --met-3: #DFAA55; --met-4: #E0714C;
       --accent-ink: #14181A;
-
-      --tg-chrome:  #1D2225;
-      --tg-wall:    #0F1315;
-      --tg-in:      #232A2E;
-      --tg-out:     #2B4A5E;
-      --tg-text:    #E8ECEA;
-      --tg-meta:    #8C979B;
-      --tg-blue:    #6AB2F2;
-      --tg-btn:     #2A3236;
+      --tg-chrome:  #1D2225;  --tg-wall:    #0F1315;
+      --tg-in:      #232A2E;  --tg-out:     #2B4A5E;
+      --tg-text:    #E8ECEA;  --tg-meta:    #8C979B;
+      --tg-blue:    #6AB2F2;  --tg-btn:     #2A3236;
       --tg-btn-line:#39433F;
       --tg-shadow:  0 1px 2px rgba(0, 0, 0, .4);
     }
@@ -173,19 +157,13 @@
     letter-spacing: -.02em;
     margin: 0;
   }
-  h3 {
-    font-size: .95rem;
-    letter-spacing: -.01em;
-    margin: 0;
-  }
+  h3 { font-size: .95rem; letter-spacing: -.01em; margin: 0; }
 
   .lede {
     font-size: clamp(1rem, 1.5vw, 1.1rem);
     color: var(--ink-soft);
     margin: 1.1rem 0 0;
   }
-
-  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
   /* -------------------------------------------------------- masthead */
 
@@ -210,7 +188,6 @@
 
   section { border-bottom: 1px solid var(--rule); }
   .band { padding-block: clamp(2.25rem, 5vw, 3.5rem); }
-
   .band-head { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 2rem; }
 
   .stage {
@@ -309,19 +286,17 @@
   .bubble.in  { align-self: flex-start; background: var(--tg-in);  border-bottom-left-radius: 4px; }
   .bubble.out { align-self: flex-end;   background: var(--tg-out); border-bottom-right-radius: 4px; }
   .bubble b { font-weight: 600; }
-  .bubble .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: .78rem; }
+  .bubble .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: .78rem;
+  }
   .bubble .stamp { display: block; font-size: .63rem; color: var(--tg-meta); text-align: right; margin-top: .2rem; }
 
-  /* link preview card, for the deep link beat */
-  .linkcard {
-    border-left: 3px solid var(--tg-blue);
-    padding-left: .55rem;
-    margin-bottom: .4rem;
-  }
+  .linkcard { border-left: 3px solid var(--tg-blue); padding-left: .55rem; margin-bottom: .4rem; }
   .linkcard b { color: var(--tg-blue); display: block; font-size: .78rem; }
   .linkcard span { font-size: .75rem; color: var(--tg-meta); }
 
-  /* inline keyboard */
   .kb { display: flex; flex-direction: column; gap: 3px; margin-top: .45rem; }
   .kb-row { display: flex; gap: 3px; }
   .kb button {
@@ -338,13 +313,10 @@
   }
   .kb button:hover { background: color-mix(in srgb, var(--tg-blue) 12%, var(--tg-btn)); }
   .kb button:active { transform: scale(.975); }
-  .kb button[disabled] { color: var(--tg-meta); cursor: default; opacity: .55; }
 
-  /* callback toast */
   .toast {
     position: absolute;
-    left: 50%;
-    top: 3.6rem;
+    left: 50%; top: 3.6rem;
     transform: translate(-50%, -14px);
     z-index: 5;
     max-width: 88%;
@@ -400,11 +372,11 @@
 
   /* ------------------------------------------------------------ rail */
 
-  .rail { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+  .rail { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 
   .rail li {
     display: grid;
-    grid-template-columns: 4.5rem minmax(0, 1fr);
+    grid-template-columns: 5.5rem minmax(0, 1fr);
     gap: 1.25rem;
     padding: 1.1rem 0;
     border-top: 1px solid var(--rule-soft);
@@ -486,7 +458,7 @@
   /* ----------------------------------------------------------- table */
 
   .table-wrap { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 540px; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 560px; }
   th, td { text-align: left; padding: .58rem .8rem .58rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
   thead th {
     font-family: var(--font-mono);
@@ -497,7 +469,7 @@
     font-weight: 500;
     border-bottom-color: var(--rule);
   }
-  td.k { font-family: var(--font-mono); font-size: .8rem; white-space: nowrap; }
+  td.k { font-family: var(--font-mono); font-size: .8rem; }
   td.v { color: var(--ink-soft); }
 
   .chip {
@@ -515,8 +487,6 @@
   .chip.high { background: var(--met-3); }
   .chip.out  { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
 
-  /* ------------------------------------------------------------ misc */
-
   .notes { display: flex; flex-direction: column; gap: 1.15rem; margin: 0; padding: 0; }
   .notes > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: .3rem; }
   .notes h3 { color: var(--ink); }
@@ -531,13 +501,14 @@
     <p class="eyebrow">Prototype, not implementation</p>
     <h1>Guild Activity<br>Competition</h1>
     <p class="lede">
-      Every screen the bot will ever show, in one page. Tap through the flows below and decide
-      whether the interaction is worth building before a line of it exists.
+      One tap a day, from a message that arrives on its own. Tap through it below and decide whether
+      it's worth building before a line of it exists.
     </p>
     <div class="masthead-meta">
-      <span>Scope <b>13 features</b></span>
-      <span>Estimate <b>700 to 900 lines</b></span>
-      <span>Surfaces <b>DM and guild group chat</b></span>
+      <span>Scope <b>15 features</b></span>
+      <span>Estimate <b>800 to 1,000 lines</b></span>
+      <span>Input <b>one tap per day</b></span>
+      <span>Sport taxonomy <b>none</b></span>
       <span>Mini App <b>none</b></span>
     </div>
   </div>
@@ -547,10 +518,11 @@
   <div class="shell band">
     <div class="band-head">
       <p class="eyebrow">Flow one</p>
-      <h2>Register, then log an activity</h2>
+      <h2>Register, then check in</h2>
       <p>
-        This is the whole product. If these taps do not feel fast, nothing further down the page
-        will save it. The rail on the right names the mechanic behind each step.
+        The whole product. Reducing taps was never going to fix the real failure, which is that
+        people forget a competition exists by week three, so the message comes to them. The rail
+        names the mechanic and the evidence behind each step.
       </p>
     </div>
 
@@ -561,14 +533,14 @@
             <div class="avatar">LB</div>
             <div class="device-title">
               <strong>Liikuntahaaste</strong>
-              <span id="presence">bot</span>
+              <span>bot</span>
             </div>
           </div>
           <div class="chat" id="chat"></div>
           <div class="toast" id="toast"></div>
           <div class="composer">
             <span class="slash">/</span>
-            <span id="composer-hint">Message</span>
+            <span>Message</span>
           </div>
         </div>
         <div class="device-tools">
@@ -584,52 +556,52 @@
             <h3>One tap registers you</h3>
             <p>
               The guild posts <code>t.me/bot?start=prodeko</code> in its own chat. Opening it sends
-              <code>/start prodeko</code>, and the guild is known before the first screen renders.
+              <code>/start prodeko</code>, so the guild is known before the first screen renders.
               There is no guild picker to build.
             </p>
           </div>
         </li>
         <li data-step="1">
-          <div class="tag">Keyboard</div>
+          <div class="tag">Your hour</div>
           <div class="body">
-            <h3>Pick what you did</h3>
+            <h3>You choose when it asks</h3>
             <p>
-              Twelve activities, each with one MET value cited from the 2024 Compendium. A flat list,
-              not a four level hierarchy, because MET values cluster tightly enough that the extra
-              precision buys nothing.
+              Notification trials find personalised send times substantially outperform one fixed
+              hour, and that reminders are tolerated mainly when people control them. Skipping is
+              allowed and turns them off.
             </p>
           </div>
         </li>
         <li data-step="2">
-          <div class="tag">Edit in place</div>
+          <div class="tag">Push</div>
           <div class="body">
-            <h3>Pick how long</h3>
+            <h3>The question arrives</h3>
             <p>
-              The same message is rewritten with <code>editMessageText</code> rather than a new one
-              being sent. One message carries the whole flow, so there is no message lifecycle to
-              manage and nothing to clean up afterwards.
+              Only to people who haven't logged that day. Three buckets because that's roughly the
+              resolution of honest self-report, and a fourth button for a rest day so it can be
+              answered truthfully rather than ignored.
             </p>
           </div>
         </li>
         <li data-step="3">
-          <div class="tag">Toast</div>
+          <div class="tag">Progress</div>
           <div class="body">
-            <h3>Confirmation without clutter</h3>
+            <h3>A target you can hit alone</h3>
             <p>
-              <code>answerCallbackQuery</code> shows a notification over the chat instead of sending
-              a message. This is what the previous version spent 208 lines of message bookkeeping
-              trying to achieve.
+              150 minutes a week, straight from the WHO guideline. Goal, progress and feedback are
+              the three best-evidenced motivational elements, and none of them require beating
+              anyone. Earlier drafts had none of them.
             </p>
           </div>
         </li>
         <li data-step="4">
-          <div class="tag">Read time</div>
+          <div class="tag">Neighbours</div>
           <div class="body">
-            <h3>Standings on demand</h3>
+            <h3>No global ranking, deliberately</h3>
             <p>
-              Nothing was incremented when the activity was logged. Every number here is summed from
-              <code>met &times; minutes</code> at the moment you ask, so undo, backdating and MET
-              corrections all just work.
+              Overall leaderboards harm low performers by accumulating perceived failure. You see
+              the person just above you and nothing else. Seeing yourself 340th of 400 helps
+              nobody.
             </p>
           </div>
         </li>
@@ -644,52 +616,58 @@
       <p class="eyebrow">Flow two</p>
       <h2>The guild group chat</h2>
       <p>
-        Logging happens in a private chat because privacy mode gives the bot no other option worth
-        taking. The group chat gets the part that private messages cannot do: several hundred people
-        watching the same number move.
+        Logging is private because privacy mode gives the bot no other option worth taking. The
+        group chat carries the part a private message cannot: several hundred people watching the
+        same number move. Two tables always appear together, so a guild that is ninth for the
+        season can still be winning the week.
       </p>
     </div>
 
     <div class="grid-2">
       <div class="panel">
-        <div class="pinbar">Pinned message <em>updated 4 minutes ago</em></div>
-<pre class="render">GUILD STANDINGS            day 34 of 92
-points per member, all 4,650 counted
+        <div class="pinbar">Pinned <em>silently updated</em></div>
+<pre class="render">THIS WEEK                  Mon to Sun
+minutes per member
 
- 1  Prodeko             8.4   +0.6  up 1
- 2  TiK                 8.1   +0.3  down 1
- 3  Inkubio             7.6   +0.4   =
- 4  Athene              6.9   +0.2   =
- 5  SIK                 6.2   +0.5  up 1
- 6  FK                  5.8   +0.1  down 1
- 7  MK                  5.1   +0.3   =
- 8  AS                  4.7   +0.2   =
- 9  Aalto Accounting    3.9   +0.1   =
+ 1  Inkubio             24.1
+ 2  Prodeko             22.8
+ 3  TiK                 21.4
+ 4  Athene              18.0
+ 5  SIK                 16.7
+ 6  MK                  15.2
+ 7  FK                  14.9
+ 8  AS                  12.6
+ 9  Aalto Accounting    11.3
 
-Prodeko  84 of 650 active  ·  12.9%</pre>
+SEASON                    week 4 of 8
+ 1  Prodeko   84.2    2  TiK   81.9
+ 3  Inkubio   76.4    4  Athene 69.1
+ 5  SIK       62.0    6  FK     58.3
+ 7  MK        51.7    8  AS     47.2
+ 9  Aalto Accounting   39.4</pre>
         <p>
-          Edited on a timer, never resent. Message edits do not notify anyone, so this stays current
-          and silent, permanently visible at the top of the chat. Roughly forty lines on top of the
-          renderer that already exists for <code>/standings</code>.
+          Edited on a timer, never resent. Edits don't notify, so this stays current and silent at
+          the top of the chat. Same renderer as <code>/standings</code>.
         </p>
       </div>
 
       <div class="panel">
-        <div class="pinbar">Weekly post <em>Mondays, 09:00</em></div>
-<pre class="render">Week 5 is done.
+        <div class="pinbar">Monday post <em>this one notifies</em></div>
+<pre class="render">New week. Everyone back to zero.
 
-Prodeko took first place from TiK
-overnight, by 0.3 points per member.
+Last week Inkubio took it, 24.1
+minutes per member, with 31% of the
+guild logging at least once.
 
-Biggest climb    SIK, up 1 place
-Most active      Inkubio, 21.5% logging
-Guild total      Prodeko 5,460 points
+Prodeko  2nd, 22.8
+Closest gap in four weeks.
 
-Log yours with /log in a private chat.</pre>
+Nothing carries over. This week is
+open.</pre>
         <p>
-          A new message, so it does notify, landing as a weekly event rather than ambient
-          information. The same renderer again. Nine guild chats, well inside the 30 messages per
-          second limit.
+          Monday because that is the temporal landmark where student gym attendance measurably
+          rises. Framed as a fresh start rather than a report card, so the guilds at the bottom get
+          an opening instead of a fourth consecutive reminder that they are losing.
         </p>
       </div>
     </div>
@@ -699,11 +677,11 @@ Log yours with /log in a private chat.</pre>
 <section>
   <div class="shell band">
     <div class="band-head">
-      <p class="eyebrow">Scope</p>
-      <h2>What each screen costs</h2>
+      <p class="eyebrow">Audit</p>
+      <h2>What the research changed</h2>
       <p>
-        Value is scored against how a guild competition actually fails, rather than against how
-        interesting the feature is to build.
+        Each row is a design decision that was wrong in the previous draft, and the finding that
+        overturned it.
       </p>
     </div>
 
@@ -711,77 +689,86 @@ Log yours with /log in a private chat.</pre>
       <table>
         <thead>
           <tr>
-            <th>Screen or behaviour</th>
-            <th>Failure it prevents</th>
-            <th>Value</th>
+            <th>Finding</th>
+            <th>Was</th>
+            <th>Now</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td class="k">Deep link registration</td>
-            <td class="v">Nobody signs up</td>
-            <td><span class="chip crit">Critical</span></td>
+            <td class="k"><a href="https://www.jmir.org/2022/1/e26779">Goal-setting, progress and feedback are the strongest elements</a></td>
+            <td class="v">A point total and a rank</td>
+            <td class="v">A weekly target with visible progress on every confirmation</td>
           </tr>
           <tr>
-            <td class="k">Activity and duration keyboards</td>
-            <td class="v">Signs up, never logs</td>
-            <td><span class="chip crit">Critical</span></td>
+            <td class="k"><a href="https://faculty.wharton.upenn.edu/wp-content/uploads/2014/06/Dai_Fresh_Start_2014_Mgmt_Sci.pdf">Student gym attendance rises at the start of a new week</a></td>
+            <td class="v">One cumulative season score</td>
+            <td class="v">Weekly reset alongside the season, twelve fresh starts instead of one</td>
           </tr>
           <tr>
-            <td class="k">Points derived, never stored</td>
-            <td class="v">Scoring cannot be trusted or corrected</td>
-            <td><span class="chip crit">Critical</span></td>
+            <td class="k"><a href="https://rodrigobelo.com/assets/pdf/leaderboards.pdf">Overall leaderboards accumulate failure for low performers</a></td>
+            <td class="v">Individual top-20 planned</td>
+            <td class="v">Cut. Only your immediate neighbours</td>
           </tr>
           <tr>
-            <td class="k">Guild standings</td>
-            <td class="v">There is no competition</td>
-            <td><span class="chip crit">Critical</span></td>
+            <td class="k"><a href="https://www.ncbi.nlm.nih.gov/books/NBK566046/">WHO: 150 to 300 min per week, benefit plateaus past 300</a></td>
+            <td class="v">Arbitrary tiers, unbounded volume</td>
+            <td class="v">150 min weekly target, daily contribution capped</td>
           </tr>
           <tr>
-            <td class="k">Group onboarding by link</td>
-            <td class="v">No engagement loop exists at all</td>
-            <td><span class="chip crit">Critical</span></td>
+            <td class="k"><a href="https://www.ncbi.nlm.nih.gov/pubmed/27617191">Team support halved exercise versus competition</a></td>
+            <td class="v">Considering encouragement features</td>
+            <td class="v">Rejected outright. Competition framing only</td>
           </tr>
           <tr>
-            <td class="k">Weekly post to guild chats</td>
-            <td class="v">Logs for a week, then stops</td>
-            <td><span class="chip crit">Critical</span></td>
+            <td class="k">Streaks need forgiveness to work</td>
+            <td class="v">Daily streak counter</td>
+            <td class="v">Weekly streak, so a rest day is neutral rather than a failure</td>
           </tr>
           <tr>
-            <td class="k">Pinned live standings</td>
-            <td class="v">Logs for a week, then stops</td>
-            <td><span class="chip high">High</span></td>
+            <td class="k"><a href="https://mhealth.jmir.org/2018/11/e10123/">Personalised send times beat one fixed hour</a></td>
+            <td class="v">Everyone at 20:00</td>
+            <td class="v">User picks the hour, stops after five ignored</td>
           </tr>
           <tr>
-            <td class="k">Toast confirmations</td>
-            <td class="v">Chat becomes unusable clutter</td>
-            <td><span class="chip high">High</span></td>
+            <td class="k"><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8150609/">Step challenges run 2 to 6 weeks, engagement decays</a></td>
+            <td class="v">A 90-day season assumed</td>
+            <td class="v">6 to 8 weeks recommended, still an open question</td>
           </tr>
-          <tr>
-            <td class="k">Undo last entry</td>
-            <td class="v">A misclick is permanent</td>
-            <td><span class="chip high">High</span></td>
-          </tr>
-          <tr>
-            <td class="k">Daily sanity cap</td>
-            <td class="v">One cheater voids the result</td>
-            <td><span class="chip high">High</span></td>
-          </tr>
-          <tr>
-            <td class="k">Mini App</td>
-            <td class="v">Brings back HTTPS, a domain, TLS and a frontend to show a list</td>
-            <td><span class="chip out">Rejected</span></td>
-          </tr>
-          <tr>
-            <td class="k">Charts and rank history</td>
-            <td class="v">Looks good, changes no behaviour</td>
-            <td><span class="chip out">Deferred</span></td>
-          </tr>
-          <tr>
-            <td class="k">Weekly point caps</td>
-            <td class="v">Per capita scoring already divides outliers by hundreds</td>
-            <td><span class="chip out">Rejected</span></td>
-          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shell band">
+    <div class="band-head">
+      <p class="eyebrow">Scope</p>
+      <h2>What stays in</h2>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Feature</th><th>Failure it prevents</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="k">Deep link registration</td><td class="v">Nobody signs up</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">One-tap daily check-in</td><td class="v">Signs up, never logs</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">User-timed reminder, self-silencing</td><td class="v">Forgets the competition exists</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">Weekly 150 min target with progress</td><td class="v">Only the already-fit feel any success</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">Weekly and season guild standings</td><td class="v">Last place becomes permanent</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">Tier stored, minutes derived, no totals</td><td class="v">Scoring can't be corrected</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">Group onboarding by link</td><td class="v">No engagement loop at all</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">Monday post, fresh-start framed</td><td class="v">Logs for a week, then stops</td><td><span class="chip crit">Critical</span></td></tr>
+          <tr><td class="k">Pinned live standings</td><td class="v">Competition goes quiet midweek</td><td><span class="chip high">High</span></td></tr>
+          <tr><td class="k">Weekly streak</td><td class="v">Nothing to protect</td><td><span class="chip high">High</span></td></tr>
+          <tr><td class="k">Undo</td><td class="v">A misclick is permanent</td><td><span class="chip high">High</span></td></tr>
+          <tr><td class="k">Sport taxonomy and MET values</td><td class="v">Creates the fairness dispute it claims to settle</td><td><span class="chip out">Rejected</span></td></tr>
+          <tr><td class="k">Global individual leaderboard</td><td class="v">Discourages the people it targets</td><td><span class="chip out">Rejected</span></td></tr>
+          <tr><td class="k">Encouragement and support features</td><td class="v">Measurably backfires</td><td><span class="chip out">Rejected</span></td></tr>
+          <tr><td class="k">Mini App</td><td class="v">Brings back HTTPS, a domain and a frontend to show a list</td><td><span class="chip out">Rejected</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -805,11 +792,11 @@ Log yours with /log in a private chat.</pre>
           </p>
         </div>
         <div>
-          <h3>The bot cannot message anyone first</h3>
+          <h3>A blocked bot is gone forever</h3>
           <p>
-            There is no way to invite or nudge a person who has not started it. Recruitment happens
-            entirely through links posted into guild chats. Once someone registers, weekly reminders
-            become available.
+            Bots cannot message anyone who has not written to them first, so an annoying reminder is
+            an unrecoverable loss. Hence the user-chosen hour, the honest rest-day button and the
+            automatic stop after five unanswered messages.
           </p>
         </div>
       </div>
@@ -817,16 +804,17 @@ Log yours with /log in a private chat.</pre>
         <div>
           <h3>Long polling removes the servers</h3>
           <p>
-            With no Mini App, the bot only makes outbound connections. No domain, no certificate, no
-            open ports, no Kubernetes. It runs on a home server or on a four euro VPS, and Telegram
-            holds undelivered updates for 24 hours, so a short outage costs nothing.
+            With no Mini App the bot only makes outbound connections. No domain, no certificate, no
+            open ports. It runs on a home server or a four euro VPS, and Telegram holds undelivered
+            updates for 24 hours, so a short outage costs nothing.
           </p>
         </div>
         <div>
           <h3>Membership counts are the denominator</h3>
           <p>
-            Guilds are ranked on points per member across their whole roster, including everyone who
-            never logs anything. That is what makes recruiting the already active a losing strategy.
+            Guilds are ranked per member across the whole roster, including everyone who never logs
+            anything. That is what makes activating quiet members the winning move rather than
+            recruiting the already-active.
           </p>
         </div>
       </div>
@@ -837,7 +825,7 @@ Log yours with /log in a private chat.</pre>
 <footer>
   <div class="shell">
     <p>Design document: docs/superpowers/specs/2026-07-30-guild-activity-competition-design.md</p>
-    <p>Open: competition dates, language, and where exactly the deferred line sits.</p>
+    <p>Open: competition length and dates, language, whether reminders default on.</p>
   </div>
 </footer>
 
@@ -849,26 +837,22 @@ Log yours with /log in a private chat.</pre>
   var toastEl = document.getElementById("toast");
   var rail = document.getElementById("rail");
   var stepCount = document.getElementById("stepcount");
-  var composerHint = document.getElementById("composer-hint");
-  var presence = document.getElementById("presence");
 
   var TOTAL = 5;
-  var step = 0;
-  var live = null;      // the bot message currently being edited in place
+  var live = null;
   var toastTimer = null;
 
-  var ACTIVITIES = [
-    ["Run", 9.0], ["Walk", 3.5], ["Cycle", 7.0],
-    ["Gym", 5.0], ["Swim", 6.0], ["Ball sports", 7.0],
-    ["Racket", 7.0], ["Ski", 9.0], ["Climb", 6.0],
-    ["Yoga", 3.0], ["Dance", 5.0], ["Other", 4.5]
+  var TARGET = 150;
+  var weekMinutes = 67;
+  var lastAdded = 0;
+
+  var TIERS = [
+    { label: "15 to 30 min", minutes: 22 },
+    { label: "30 to 60 min", minutes: 45 },
+    { label: "60+ min",      minutes: 75 }
   ];
 
-  var chosen = null;
-  var total = 57.0;
-
   function setStep(n) {
-    step = n;
     Array.prototype.forEach.call(rail.children, function (li) {
       var s = Number(li.getAttribute("data-step"));
       li.classList.toggle("on", s === n);
@@ -889,8 +873,7 @@ Log yours with /log in a private chat.</pre>
         var b = document.createElement("button");
         b.type = "button";
         b.textContent = btn.label;
-        if (btn.disabled) { b.disabled = true; }
-        else { b.addEventListener("click", btn.on); }
+        b.addEventListener("click", btn.on);
         r.appendChild(b);
       });
       kb.appendChild(r);
@@ -926,176 +909,220 @@ Log yours with /log in a private chat.</pre>
     el.textContent = text;
     chat.appendChild(el);
     scroll();
-    return el;
   }
 
   function toast(text) {
     window.clearTimeout(toastTimer);
     toastEl.textContent = text;
     toastEl.classList.add("show");
-    toastTimer = window.setTimeout(function () {
-      toastEl.classList.remove("show");
-    }, 2600);
+    toastTimer = window.setTimeout(function () { toastEl.classList.remove("show"); }, 2800);
   }
 
-  function fmt(n) { return n.toFixed(1); }
+  function bar(done, total) {
+    var slots = 10;
+    var filled = Math.min(slots, Math.round(done / total * slots));
+    return "█".repeat(filled) + "░".repeat(slots - filled);
+  }
 
   /* ------------------------------------------------------ the flow */
-
-  function menu() {
-    return [[
-      { label: "Log activity", on: askActivity },
-      { label: "My stats", on: showMe },
-      { label: "Standings", on: showStandings }
-    ]];
-  }
 
   function start() {
     chat.textContent = "";
     live = null;
-    chosen = null;
-    total = 57.0;
-    presence.textContent = "bot";
-    composerHint.textContent = "Message";
+    weekMinutes = 67;
+    lastAdded = 0;
     setStep(0);
 
-    pill("Today");
+    pill("Wednesday");
 
     bubble("in",
       '<div class="linkcard"><b>Prodeko</b><span>Guild chat, pinned</span></div>' +
-      'Prodeko liikuntahaaste is live. Tap to join, you will be counted for Prodeko automatically.',
+      "Prodeko liikuntahaaste is live. Tap to join, you'll be counted for Prodeko automatically.",
       [[{ label: "t.me/liikuntahaastebot?start=prodeko", on: register }]]
     );
   }
 
   function register() {
-    bubble("out", "/start prodeko", null, "18:42");
-    composerHint.textContent = "Message";
-
+    bubble("out", "/start prodeko", null, "14:20");
     window.setTimeout(function () {
-      bubble("in",
-        "Moi Andreas. You are registered for <b>Prodeko</b>.\n\n" +
-        "Log something with <b>/log</b>. It takes two taps.\n" +
-        "Competition runs to 30 November, <b>58 days</b> left.",
-        menu(), "18:42"
+      live = bubble("in",
+        "Moi Andreas. You're in, for <b>Prodeko</b>.\n\n" +
+        "One tap a day, that's it. When should I ask?",
+        [
+          [
+            { label: "17:00", on: function () { setHour("17:00"); } },
+            { label: "18:00", on: function () { setHour("18:00"); } }
+          ],
+          [
+            { label: "20:00", on: function () { setHour("20:00"); } },
+            { label: "21:00", on: function () { setHour("21:00"); } }
+          ],
+          [{ label: "Don't ask me", on: function () { setHour(null); } }]
+        ],
+        "14:20"
       );
       setStep(1);
     }, 380);
   }
 
-  function askActivity() {
-    bubble("out", "/log", null, "18:43");
-    var rows = [];
-    for (var i = 0; i < ACTIVITIES.length; i += 3) {
-      rows.push(ACTIVITIES.slice(i, i + 3).map(function (a) {
-        return { label: a[0], on: function () { pickActivity(a[0], a[1]); } };
-      }));
+  function setHour(hour) {
+    if (hour) {
+      edit(live,
+        "Set for <b>" + hour + "</b>. Change it any time with /remind.\n\n" +
+        "Target is <b>150 minutes a week</b>, the WHO guideline. That's about four sessions."
+      );
+      toast("Reminder set for " + hour);
+    } else {
+      edit(live, "No reminders. Log whenever you like with /log.");
+      toast("Reminders off");
     }
-    window.setTimeout(function () {
-      live = bubble("in", "What did you do?", rows, "18:43");
-      setStep(1);
-    }, 260);
-  }
-
-  function pickActivity(name, met) {
-    chosen = { name: name, met: met };
     setStep(2);
-    edit(live,
-      "<b>" + name + "</b> &middot; <span class=\"mono\">" + fmt(met) + " MET</span>\n" +
-      "How long?",
+    window.setTimeout(checkIn, 700);
+  }
+
+  function checkIn() {
+    pill("20:00");
+    live = bubble("in",
+      "<b>Moved today?</b>",
       [
-        [15, 30, 45].map(mins),
-        [60, 90, 0].map(mins),
-        [
-          { label: "Yesterday", on: function () { toast("Date set to yesterday."); } },
-          { label: "Back", on: function () { setStep(1); askAgain(); } }
-        ]
-      ]
+        [{ label: TIERS[0].label, on: function () { log(0); } }],
+        [{ label: TIERS[1].label, on: function () { log(1); } }],
+        [{ label: TIERS[2].label, on: function () { log(2); } }],
+        [{ label: "Not today", on: rest }]
+      ],
+      "20:00"
     );
+    setStep(2);
   }
 
-  function mins(m) {
-    if (m === 0) { return { label: "Other", on: function () { toast("Type any number of minutes."); } }; }
-    return { label: m + " min", on: function () { logIt(m); } };
-  }
-
-  function askAgain() {
-    var rows = [];
-    for (var i = 0; i < ACTIVITIES.length; i += 3) {
-      rows.push(ACTIVITIES.slice(i, i + 3).map(function (a) {
-        return { label: a[0], on: function () { pickActivity(a[0], a[1]); } };
-      }));
-    }
-    edit(live, "What did you do?", rows);
-  }
-
-  function logIt(minutes) {
-    var pts = chosen.met * minutes / 60;
-    total += pts;
+  function log(i) {
+    var t = TIERS[i];
+    lastAdded = t.minutes;
+    weekMinutes += t.minutes;
+    toast("Logged. " + t.minutes + " min");
     setStep(3);
-    toast("Logged. " + chosen.name + " " + minutes + " min, +" + fmt(pts) + " points");
+
+    var left = TARGET - weekMinutes;
+    var tail = left > 0
+      ? (left <= 45 ? "One more session does it." : left + " minutes to go.")
+      : "Target hit. Fourth week running.";
 
     edit(live,
-      "<b>" + chosen.name + "</b>, " + minutes + " min\n" +
-      '<span class="mono">' + fmt(chosen.met) + " MET &times; " + minutes +
-      " min / 60 = " + fmt(pts) + " points</span>\n\n" +
-      "Today &middot; your total <b>" + fmt(total) + "</b>",
+      "<b>" + t.minutes + " min.</b> Good.\n\n" +
+      '<span class="mono">This week   ' + Math.min(weekMinutes, 999) + " / " + TARGET + " min\n" +
+      "            " + bar(weekMinutes, TARGET) + "</span>\n" +
+      tail,
       [[
-        { label: "Undo", on: function () { undo(pts); } },
-        { label: "Log another", on: askActivity },
+        { label: "Undo", on: undo },
+        { label: "Say what it was", on: tagIt }
+      ], [
+        { label: "My week", on: showMe },
         { label: "Standings", on: showStandings }
       ]]
     );
   }
 
-  function undo(pts) {
-    total -= pts;
-    toast("Removed. Your total is back to " + fmt(total) + ".");
-    edit(live,
-      "Removed.\n\nYour total <b>" + fmt(total) + "</b>",
-      menu()
-    );
+  function rest() {
+    toast("Rest day noted");
     setStep(3);
+    edit(live,
+      "Noted. Rest days don't break anything.\n\n" +
+      '<span class="mono">This week   ' + weekMinutes + " / " + TARGET + " min\n" +
+      "            " + bar(weekMinutes, TARGET) + "</span>",
+      [[
+        { label: "My week", on: showMe },
+        { label: "Standings", on: showStandings }
+      ]]
+    );
+  }
+
+  function undo() {
+    weekMinutes -= lastAdded;
+    lastAdded = 0;
+    toast("Removed");
+    edit(live,
+      "Removed.\n\n" +
+      '<span class="mono">This week   ' + weekMinutes + " / " + TARGET + " min\n" +
+      "            " + bar(weekMinutes, TARGET) + "</span>",
+      [[{ label: "Log today", on: checkIn }]]
+    );
+  }
+
+  function tagIt() {
+    toast("Tags are colour only, they score nothing");
+    edit(live,
+      "What was it? This scores nothing, it just makes the Monday post more fun.",
+      [
+        [
+          { label: "Gym", on: tagged }, { label: "Run", on: tagged }, { label: "Ball", on: tagged }
+        ],
+        [
+          { label: "Swim", on: tagged }, { label: "Ski", on: tagged }, { label: "Other", on: tagged }
+        ]
+      ]
+    );
+  }
+
+  function tagged() {
+    toast("Tagged");
+    edit(live,
+      "<b>" + lastAdded + " min.</b> Good.\n\n" +
+      '<span class="mono">This week   ' + weekMinutes + " / " + TARGET + " min\n" +
+      "            " + bar(weekMinutes, TARGET) + "</span>",
+      [[
+        { label: "My week", on: showMe },
+        { label: "Standings", on: showStandings }
+      ]]
+    );
   }
 
   function showMe() {
-    bubble("out", "/me", null, "18:45");
+    bubble("out", "/me", null, "20:01");
     window.setTimeout(function () {
       live = bubble("in",
-        "<b>Andreas</b> &middot; Prodeko\n" +
         '<span class="mono">' +
-        "points        " + fmt(total) + "\n" +
-        "guild rank    12 of 84 active\n" +
-        "this week     18.0\n" +
-        "logged        14 activities, 9 days" +
+        "This week    " + weekMinutes + " / " + TARGET + " min\n" +
+        "             " + bar(weekMinutes, TARGET) + "\n" +
+        "Streak       3 weeks at target\n" +
+        "Guild        Prodeko, 2nd of 9 this week" +
+        "</span>\n\n" +
+        "<b>Around you</b>\n" +
+        '<span class="mono">' +
+        "  Sanna      134 min\n" +
+        "  you        " + weekMinutes + " min\n" +
+        "  Otto        98 min" +
         "</span>",
-        menu(), "18:45"
+        [[{ label: "Standings", on: showStandings }]],
+        "20:01"
       );
       setStep(4);
-    }, 260);
+    }, 300);
   }
 
   function showStandings() {
-    bubble("out", "/standings", null, "18:46");
+    bubble("out", "/standings", null, "20:02");
     window.setTimeout(function () {
       live = bubble("in",
-        "<b>Guild standings</b> &middot; day 34 of 92\n" +
+        "<b>This week</b> · minutes per member\n" +
         '<span class="mono">' +
-        " 1  Prodeko            8.4\n" +
-        " 2  TiK                8.1\n" +
-        " 3  Inkubio            7.6\n" +
-        " 4  Athene             6.9\n" +
-        " 5  SIK                6.2\n" +
-        " 6  FK                 5.8\n" +
-        " 7  MK                 5.1\n" +
-        " 8  AS                 4.7\n" +
-        " 9  Aalto Accounting   3.9" +
+        " 1  Inkubio            24.1\n" +
+        " 2  Prodeko            22.8\n" +
+        " 3  TiK                21.4\n" +
+        " 4  Athene             18.0\n" +
+        " 5  SIK                16.7" +
         "</span>\n\n" +
-        "Points per member, counting every member.",
-        menu(), "18:46"
+        "<b>Season</b> · week 4 of 8\n" +
+        '<span class="mono">' +
+        " 1  Prodeko            84.2\n" +
+        " 2  TiK                81.9\n" +
+        " 3  Inkubio            76.4" +
+        "</span>\n\n" +
+        "Everyone in the guild counts, logging or not.",
+        [[{ label: "My week", on: showMe }]],
+        "20:02"
       );
       setStep(4);
-    }, 260);
+    }, 300);
   }
 
   document.getElementById("replay").addEventListener("click", start);

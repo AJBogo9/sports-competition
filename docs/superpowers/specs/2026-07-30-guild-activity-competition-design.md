@@ -2,158 +2,109 @@
 
 **Date:** 2026-07-30
 **Status:** Scope agreed, prototype stage. Implementation deferred until a competition date exists.
-**Supersedes:** [`AJBogo9/activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot) (complete rewrite, not a migration)
+**Relationship to prior work:** Designed from first principles. An earlier system,
+[`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot), solved a similar
+problem; this design deliberately does not inherit its structure.
 
 ---
 
-## 1. Context
+## 1. What this is
 
-A previous system, `activity-challenge-bot`, implemented a physical-activity competition between
-Aalto University student guilds. It was configured for a "Winter 2025-2026 Activity Challenge"
-running 2025-12-24 to 2026-03-31. That codebase is roughly 4,250 lines across a grammY bot, a Bun
-API server, and a React/Vite web app, deployed on Kubernetes (Talos Linux) with Flux CD on Hetzner
-Cloud.
+A Telegram bot that runs a time-boxed physical activity competition between Aalto student guilds.
+Guilds are ranked on activity per member. People report what they did in one tap per day.
 
-The decision is to rewrite from scratch with a deliberately minimal scope, keeping the ideas that
-worked and discarding the machinery that did not earn its cost.
-
-### Carried over from the predecessor
-
-- **MET-based scoring.** `points = MET x minutes / 60`, using values from the 2024 Compendium of
-  Physical Activities. This makes a swim and a run genuinely comparable and gives a published,
-  citable authority to point at when guilds dispute the weighting.
-- **Per-capita guild ranking against total guild membership**, not registered members. Guilds win by
-  getting more people moving, not by recruiting the already-active. Counting zero-point members in
-  the denominator is the load-bearing detail.
-- **Telegram-native identity.** No passwords, no email verification, no password-reset support load.
-
-### Discarded, with reasons
-
-| Discarded | Reason |
-|---|---|
-| `users.points` as a stored running total | Root defect. Deletes, edits, backdating and rule changes all require manual compensation, and drift is silent and permanent |
-| Storing computed points without the MET value or compendium version | History cannot be recomputed even when a value is found to be wrong |
-| Seven-step logging wizard (category, subcategory, activity, intensity, date, duration, confirm) | Primary friction source in a habit that must repeat for months |
-| Four-level activity hierarchy over the full compendium, with pagination | Large navigation surface and a data pipeline, to select a number from a range that clusters tightly |
-| React/Vite web app, API server, static serving, CORS, initData auth | See section 3: removing it removes the entire public-HTTPS requirement |
-| Two-message manager (208 lines) | Solved for free by `answerCallbackQuery` toasts plus `editMessageText` |
-| Kubernetes, Talos, Flux CD | Large operational surface for a few hundred users |
-| Daily snapshot tables, five-minute in-memory cache | Premature at this data volume; the cache introduced invalidation bugs |
-| Feedback wizard, profile menus, activity-history browser, calendar widget | Not load-bearing for the competition |
-
-### Known defects in the predecessor, recorded so the rewrite does not repeat them
-
-1. **`/api/simulation/*` endpoints shipped unguarded.** `POST /api/simulation/activity/add` read
-   `body.points` from the request and passed it straight to `addPointsToUser`. Any authenticated
-   user could award themselves arbitrary points.
-2. **No `auth_date` freshness check** on Mini App initData, combined with caching the raw initData
-   string as an auth result. A captured initData string stayed valid indefinitely.
-3. **A dedup index stricter than its comment.** The comment claimed "same activity within same
-   minute", but the index on `(user_id, activity_type, activity_date, duration, points)` had no time
-   component, silently rejecting a legitimate second identical activity on the same day.
+The whole system is one bot process and one PostgreSQL database. There is no web app and no Mini
+App, which means no public HTTPS endpoint, no domain, no TLS certificate and no inbound
+connectivity of any kind.
 
 ---
 
-## 2. Goals and non-goals
+## 2. Design principles, and the evidence behind them
 
-### Goals
+Every non-obvious choice below traces to something in section 3.
 
-- Run one time-boxed activity competition between a fixed set of student guilds.
-- Make logging an activity fast enough to survive months of repetition.
-- Make guild standings visible where the social pressure actually lives: the guild group chat.
-- Keep the system small enough that one person can hold it in their head and maintain it alone.
-
-### Non-goals
-
-- Verifying that activity actually happened. The Telegram API offers nothing that verifies effort,
-  and location sharing is both invasive and unconvincing. Integrity comes from social visibility
-  among people who know each other, not from technology.
-- Serving users who are not on Telegram. They could be shown standings, but they could not log
-  activities, so read-only access does not make them participants.
-- Supporting multiple concurrent competitions or multiple organisations.
-- Rich analytics, charts, or rank history.
+1. **Report the day, not the workout.** A person can reliably say whether they moved and roughly
+   for how long. They cannot reliably self-assess intensity, and most sports have no distance.
+2. **The week is the unit of achievement.** Weekly boundaries create repeated fresh starts, and a
+   season-cumulative score makes early failure permanent.
+3. **Everyone has a target they can hit alone.** Comparative feedback alone rewards the people who
+   least need it and discourages the people the competition exists for.
+4. **No sport taxonomy in the scoring.** A taxonomy is the only thing that can generate a
+   "why is my sport worth less" dispute. Removing it removes the dispute.
+5. **Competition, never encouragement.** Support framing measurably backfires in this exact context.
+6. **Reminders are opt-out, user-timed, and self-silencing.** A blocked bot can never message that
+   person again, so an annoying reminder is an unrecoverable loss.
 
 ---
 
-## 3. Platform constraints
+## 3. Evidence base
 
-These were verified against the current Telegram documentation and drive the architecture. They are
-recorded because several of them invalidate designs that look reasonable.
-
-### Privacy mode forbids in-group logging
-
-A bot in a group runs in Privacy Mode by default and "only sees messages explicitly meant for them,
-general commands if they were the last to message, inline messages, and replies to their messages".
-Disabling it requires re-adding the bot and grants it every message in the chat.
-
-**Consequence:** logging happens in DM. The group chat is for standings only. This is not a UX
-preference, it is the only split the API permits without asking guild boards for surveillance
-rights over their own chat.
-
-### Bots cannot initiate conversations
-
-Users must message the bot first. There is no way to DM, invite, or nudge someone who has not
-started it.
-
-**Consequence:** all recruitment flows through links posted into guild chats. Once a user registers
-they have messaged the bot, so weekly digests and reminders to registered users are permitted.
-
-### Deep links carry a payload
-
-`https://t.me/<bot>?start=<payload>` delivers `/start <payload>` to the bot in a private chat.
-`https://t.me/<bot>?startgroup=<payload>` adds the bot to a group and delivers
-`/start@<bot> <payload>`.
-
-**Consequence:** guild assignment needs no UI at all. See section 6.
-
-### Keyboard-button Mini Apps receive no identity
-
-`WebAppInitData` "is empty if the Mini App was launched from a keyboard button or from inline mode".
-Only the menu button, inline buttons, direct links, the attachment menu and the profile button carry
-initData. Recorded for completeness; this design has no Mini App.
-
-### Update delivery defaults
-
-`allowed_updates` defaults to all types except `chat_member`, `message_reaction` and
-`message_reaction_count`. `my_chat_member` is delivered by default, so detecting the bot being added
-to a group needs no configuration.
-
-### Message edits are silent
-
-`editMessageText` updates a message in place without notifying chat members, while a new message
-notifies. This gives two distinct engagement registers from one rendering function: a silent
-always-current pinned leaderboard, and a weekly post that lands as an event.
-
-### Rate limits
-
-Default broadcast limit is 30 messages per second (raisable to 1,000/s via paid broadcasts, which is
-irrelevant here). A full broadcast to 700 users takes roughly 24 seconds.
+| Finding | Source | What it changed here |
+|---|---|---|
+| 150 to 300 min/week moderate activity; benefits plateau past 300 | [WHO 2020 guidelines](https://www.ncbi.nlm.nih.gov/books/NBK566046/) | The personal weekly target is 150 minutes. Daily contribution is capped, since past the plateau extra volume is not the behaviour we are paying for |
+| Competition roughly doubled exercise vs team support; support groups backfire by drawing attention to less active members; team and individual competition performed about equally | [Zhang & Centola, RCT, ~800 students](https://www.ncbi.nlm.nih.gov/pubmed/27617191), [summary](https://penntoday.upenn.edu/research/online-competition-not-online-social-support-motivates-people-to-exercise) | Guild-vs-guild framing retained. All "cheer each other on" features rejected. No investment in team mechanics beyond identity and the group chat |
+| Macro leaderboards harm low performers through accumulated perceived failure; showing top few, your position, and who is just above you is better | [Leaderboard position research](https://rodrigobelo.com/assets/pdf/leaderboards.pdf), [wearables and gamification review](https://arxiv.org/pdf/2301.02767) | No global individual leaderboard. `/me` shows only the user's local neighbourhood. Guild standings gain a weekly table so last place is not permanent |
+| Gym attendance among university students rises at the start of a new week; temporal landmarks motivate aspirational behaviour | [Dai, Milkman & Riis 2014, Management Science](https://faculty.wharton.upenn.edu/wp-content/uploads/2014/06/Dai_Fresh_Start_2014_Mgmt_Sci.pdf) | Monday reset. Weekly standings alongside season standings. The weekly post is framed as a fresh start, not a report card |
+| Goal-setting, progress tracking and feedback are the most effective gamification elements; feedback ranked first | [JMIR meta-analysis of RCTs](https://www.jmir.org/2022/1/e26779) | Every confirmation shows progress toward the weekly target. This is the single biggest change from earlier drafts |
+| Median 66 days to automaticity, range 18 to 254, roughly half of participants never got there | [Lally et al. 2010](https://onlinelibrary.wiley.com/doi/10.1002/ejsp.674), [author's own caveat](https://www.surrey.ac.uk/news/does-it-really-take-66-days-form-habit-we-asked-expert-dr-pippa-lally) | Do not promise habit formation. Design for the competition window, not for lasting change |
+| Workplace step challenges usually run 2 to 6 weeks, 4 often optimal; engagement declines with novelty; documented dip around week 7 of 8 | [4-year national step challenge analysis](https://pmc.ncbi.nlm.nih.gov/articles/PMC8150609/) | Recommended length is 6 to 8 weeks, not a full term. See section 9 |
+| Personalised send times substantially outperform one fixed time; notifications are acceptable mainly when users control them; disengaged users need longer back-off | [Micro-randomised trial](https://mhealth.jmir.org/2018/11/e10123/), [behaviour change app trial](https://mhealth.jmir.org/2023/1/e38342) | User-chosen reminder hour, opt-out, and automatic stop after repeated non-response |
+| Streaks work through loss aversion but need forgiveness; roughly a week to lock in | Duolingo product reporting, **company-sourced, not peer reviewed** | Streaks counted in weeks, not days, so rest days are neutral |
+| Competition and ranking can undermine autonomy and competence, and can read as surveillance | [Ryan & Deci, self-determination theory](https://selfdeterminationtheory.org/SDT/documents/2000_RyanDeci_SDT.pdf) | The non-comparative weekly target exists precisely to give a win that does not depend on beating anyone |
 
 ---
 
-## 4. Architecture
+## 4. Scoring
 
-One process, one database.
+### What a person reports
 
-```
-Telegram  <--long polling-->  bot process  <-->  PostgreSQL
-```
+One tap, once a day:
 
-**Long polling, not webhooks.** The bot connects outbound only. This is possible because there is no
-web app, and it is the single decision that removes the most infrastructure: no public HTTPS
-endpoint, no domain, no TLS certificate, no reverse proxy, no ingress, no Kubernetes.
+| Button | Recorded as | Counts as |
+|---|---|---|
+| 15 to 30 min | `short` | 22 min |
+| 30 to 60 min | `medium` | 45 min |
+| 60+ min | `long` | 75 min |
+| Not today | `rest` | 0 min |
 
-**Deployment:** one container for the bot, one for PostgreSQL, via Compose or systemd on a single
-small machine.
+Three tiers because that is roughly the resolution of honest self-report. Finer buckets invite
+agonising over whether a session was 55 or 65 minutes, which spends friction on precision the
+scoring does not need.
 
-**Configuration:** guilds, membership counts, competition dates and the activity list live in one
-version-controlled config file. Changing them is an edit and a restart. There is no admin panel.
+The `long` tier is capped at 75 minutes deliberately. Past roughly 300 minutes a week the health
+benefit plateaus, and rewarding unlimited volume converts a participation competition into a
+training-log competition. It also caps dishonesty: the most an inflating user can gain is about
+three times an honest one, where an unbounded minutes field would allow far more.
+
+### Personal target
+
+**150 minutes a week**, taken directly from the WHO guideline. It is achievable in four sessions,
+it is not comparative, and it comes with an external citation rather than being invented here.
+
+### Guild ranking
+
+Minutes per member, counting the guild's entire roster including everyone who never logs anything.
+This is what makes activating inactive members the winning strategy rather than recruiting the
+already-active.
+
+Two tables are published, always together:
+
+- **This week**, reset every Monday
+- **The season**, cumulative
+
+A guild that is ninth for the season can still win the week. This is the whole point: without it,
+the bottom guilds receive nothing but repeated failure signals in their own group chat, which
+suppresses exactly the population the competition exists to reach.
+
+### Stored versus derived
+
+`days` stores the **tier the user actually tapped**, which is the ground truth of what they
+reported. Minutes are derived from config at read time, so retuning tier values recomputes history
+rather than rewriting it. No total is ever stored.
 
 ---
 
 ## 5. Data model
-
-Three tables.
 
 ```sql
 CREATE TABLE guilds (
@@ -163,74 +114,47 @@ CREATE TABLE guilds (
 );
 
 CREATE TABLE users (
-  telegram_id   BIGINT PRIMARY KEY,
-  guild_slug    TEXT NOT NULL REFERENCES guilds(slug),
-  first_name    TEXT NOT NULL,
-  username      TEXT,
-  joined_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  telegram_id     BIGINT PRIMARY KEY,
+  guild_slug      TEXT NOT NULL REFERENCES guilds(slug),
+  first_name      TEXT NOT NULL,
+  username        TEXT,
+  reminder_hour   SMALLINT,           -- NULL means reminders off
+  ignored_streak  SMALLINT NOT NULL DEFAULT 0,
+  joined_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE activities (
-  id            BIGSERIAL PRIMARY KEY,
+CREATE TABLE days (
   telegram_id   BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
-  activity_key  TEXT NOT NULL,
-  met           NUMERIC(4,2) NOT NULL,
-  minutes       INTEGER NOT NULL CHECK (minutes > 0 AND minutes <= 600),
-  activity_date DATE NOT NULL,
-  logged_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  date          DATE NOT NULL,
+  tier          TEXT NOT NULL,        -- short | medium | long | rest
+  tag           TEXT,                 -- optional, scores nothing
+  logged_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (telegram_id, date)
 );
 
-CREATE INDEX ON activities (telegram_id, activity_date);
-CREATE INDEX ON activities (activity_date);
+CREATE INDEX ON days (date);
 ```
 
-### Points are never stored
+Three tables. One row per person per day, so **double-logging is structurally impossible** rather
+than something to detect and guard against. Undo is deleting one row. Logging again on the same day
+corrects that day rather than appending to it, which matches how people think about a day.
 
-`activities` records the **MET value in force at the time of logging**, and points are always
-derived:
-
-```sql
-SUM(a.met * a.minutes / 60.0)
-```
-
-This single rule fixes the predecessor's root defect and everything downstream of it:
-
-- Deleting an activity makes the standings correct with no compensating write.
-- Correcting a wrong MET value recomputes all affected history automatically.
-- Backdating needs no reconciliation.
-- There is no running total, therefore no drift, therefore no reconciliation job.
-
-At the expected volume (a few hundred users, low tens of thousands of rows over a season) the full
-aggregation is sub-millisecond. There is no cache and no snapshot table, and therefore no cache
-invalidation bug.
-
-### Guild standings query
+Guild standings for a period:
 
 ```sql
 SELECT g.name,
-       COALESCE(SUM(a.met * a.minutes / 60.0), 0)              AS total_points,
-       COALESCE(SUM(a.met * a.minutes / 60.0), 0) / g.member_count AS avg_points,
-       COUNT(DISTINCT a.telegram_id)                           AS active_members
+       COALESCE(SUM(t.minutes), 0)                  AS minutes,
+       COALESCE(SUM(t.minutes), 0) / g.member_count AS per_member
 FROM guilds g
-LEFT JOIN users u      ON u.guild_slug = g.slug
-LEFT JOIN activities a ON a.telegram_id = u.telegram_id
-                      AND a.activity_date BETWEEN :start AND :end
+LEFT JOIN users u ON u.guild_slug = g.slug
+LEFT JOIN days d  ON d.telegram_id = u.telegram_id AND d.date BETWEEN :from AND :to
+LEFT JOIN tier_minutes t ON t.tier = d.tier      -- a config-backed VALUES list
 GROUP BY g.slug, g.name, g.member_count
-ORDER BY avg_points DESC;
+ORDER BY per_member DESC;
 ```
 
-### Notes
-
-- `guild_slug` is a real foreign key. The predecessor used an unconstrained `VARCHAR` validated in
-  application code.
-- No dedup index. The predecessor's caused false rejections of legitimate repeat activities.
-  Accidental double-taps are prevented in the interaction layer instead: pressing a duration button
-  is the commit, and it immediately rewrites that message into the confirmation, so the duration
-  keyboard no longer exists to be pressed a second time. A stale callback arriving after the rewrite
-  is answered and ignored.
-- Membership counts live in `guilds` and are seeded from config. They are the per-capita
-  denominator, so changing one mid-competition changes every historical comparison. Changes should
-  be deliberate and announced.
+At a few hundred users over a season this is a few thousand rows. No cache, no snapshot tables, no
+invalidation.
 
 ---
 
@@ -238,122 +162,156 @@ ORDER BY avg_points DESC;
 
 ### Registration: one tap
 
-Each guild gets a link: `https://t.me/<bot>?start=prodeko`. Posted in the guild chat, in a guild
-newsletter, on a poster as a QR code.
+Each guild gets a link, `https://t.me/<bot>?start=prodeko`, posted in its own chat or printed as a
+QR code. Opening it sends `/start prodeko` and registration is complete. There is no guild picker.
+A bare `/start` falls back to a selection keyboard, which most users never see.
 
-Tapping it opens the bot, sends `/start prodeko`, and the user is registered to that guild
-immediately. There is no guild picker screen. The predecessor spent 83 lines on one.
+Immediately after registering, the user is asked once for a reminder time. Skipping is allowed and
+leaves reminders off.
 
-A bare `/start` with no payload, or an unknown payload, falls back to a guild-selection keyboard.
-This is the only place guild selection UI exists, and most users never see it.
+### Logging: one tap
 
-### Logging: two taps
+The daily message, either pushed at the user's chosen hour or pulled with `/log`:
 
 ```
-/log
-  -> [Run] [Walk] [Cycle] [Gym] [Swim] [Ball] [Racket] [Ski] ...
-  -> [15] [30] [45] [60] [90] [Other]
-  -> toast: "Logged: Run 30 min, +4.0 points"
+Moved today?
+
+[ 15 to 30 min ]
+[ 30 to 60 min ]
+[ 60+ min ]
+[ Not today ]
 ```
 
-- Activity buttons come from a curated list of 10 to 14 entries, each with one fixed MET value cited
-  from the 2024 Compendium. Not a hierarchy, not paginated.
-- Duration buttons cover almost every real entry. "Other" prompts for a number. There is no free-text
-  parsing in the common path.
-- Confirmation is an `answerCallbackQuery` toast, not a message. The chat stays clean with no
-  message-lifecycle machinery.
-- Date defaults to today, with a "yesterday" button. No calendar widget.
-- "Other" activity entries map to `other (moderate)` and `other (vigorous)` so nothing is
-  unloggable.
+The confirmation rewrites the same message in place:
 
-### Standings
+```
+45 min. Good.
 
-`/standings` renders the guild table. `/me` renders personal totals plus the user's guild rank.
-One rendering function is shared by every surface that displays standings.
+This week   112 / 150 min
+            ███████░░░
+One more session does it.
 
-### The group-chat loop
+[ Undo ]        [ Say what it was ]
+```
 
-1. A guild board taps `https://t.me/<bot>?startgroup=prodeko`.
-2. The bot is added and receives `/start@<bot> prodeko`, learning the chat ID and which guild it
-   belongs to in one step. No admin panel, no manual chat-ID collection.
-3. The bot posts the standings once and pins that message.
-4. A timer edits the pinned message periodically. Edits are silent, so the leaderboard is always
-   current and never annoying.
-5. A weekly post sends the standings as a new message, which does notify, landing as an event.
+The progress line carries goal, progress and feedback together, which are the three elements with
+the strongest evidence behind them, and it is non-comparative, so it is available to everyone
+regardless of where they sit against anyone else.
 
-Steps 4 and 5 call the same renderer as `/standings`.
+### The optional tag
 
-### Command scopes
+"Say what it was" records a label that **scores nothing**. It feeds colour in the weekly post
+("Inkubio has done more swimming than everyone else put together"). Because it carries no points,
+the list can be loose and nobody has to agree on it.
 
-`setMyCommands` with `BotCommandScopeAllPrivateChats` and `BotCommandScopeAllGroupChats` so that
-`/log` and `/me` appear only in DMs and `/standings` only in groups. Users see only what applies
-where they are.
+### `/me`
+
+```
+This week    112 / 150 min
+Streak       3 weeks at target
+Guild        Prodeko, 4th of 9 this week
+
+Just ahead of you
+  Sanna     134 min
+  you       112 min
+  Otto       98 min
+```
+
+Deliberately **no global individual leaderboard.** Only the immediate neighbourhood, per the
+leaderboard research. Seeing yourself at 340th of 400 has no upside for anyone.
+
+### Reminders
+
+Sent at the user's chosen hour, only to people who have not logged that day.
+
+- `[ Not today ]` dismisses without judgement and records a rest day, so the day is accounted for.
+- After **five consecutive** unanswered reminders, they stop automatically. Someone ignoring five
+  will not be won by a sixth, and continuing is how a bot gets blocked.
+- A 403 from Telegram means the user blocked the bot. Record it and never try again.
+- Reminders can be switched off at any time and re-enabled later.
+
+### The guild group chat
+
+A board member taps `https://t.me/<bot>?startgroup=prodeko`. The bot is added and receives
+`/start@<bot> prodeko`, learning the chat and its guild in one step, with no admin panel and no
+manual chat-ID collection.
+
+**A pinned message**, edited on a timer. Message edits do not notify, so it is permanently current
+and permanently silent. It shows the week first, the season second.
+
+**A Monday morning post**, which does notify, framed as a fresh start rather than a report card:
+last week's result, then everyone back to zero. Monday is chosen because it is the temporal landmark
+where student gym attendance measurably rises.
 
 ---
 
 ## 7. Scope
 
-Value is scored against the ways a guild competition actually fails: nobody registers (onboarding),
-people register but never log (friction), people log for a week then stop (feedback loop), guilds
-dispute the scoring (legitimacy), organisers cannot fix problems mid-run (operability), and cheating
-destroys trust (integrity).
-
-### In scope
-
-| # | Feature | Prevents | Value |
+| # | Feature | Why | Value |
 |---|---|---|---|
-| 1 | Registration via `?start=<guild>` deep link | Onboarding | Critical |
-| 2 | `/log` with activity and duration keyboards | Friction | Critical |
-| 3 | Points derived from stored `(met, minutes)` | Legitimacy, operability | Critical |
-| 4 | `/standings` guild leaderboard | It is the competition | Critical |
-| 5 | Guilds, dates and activities in one config file | Operability | Critical |
-| 6 | Group onboarding via `?startgroup=<guild>` and `my_chat_member` | Feedback loop | Critical |
-| 7 | Weekly standings post to guild chats | Feedback loop | Critical |
-| 8 | Scoped command menus | Onboarding | High |
-| 9 | Pinned, silently-updated standings message | Feedback loop | High |
-| 10 | Toast confirmations via `answerCallbackQuery` | Friction | High |
-| 11 | `/me` personal stats | Feedback loop | High |
-| 12 | Undo last entry | Trust | High |
-| 13 | Daily sanity cap (reject more than four hours in one day) | Integrity | High |
+| 1 | Registration via `?start=<guild>` | One tap, no picker to build | Critical |
+| 2 | One-tap daily logging, three tiers | The entire input surface | Critical |
+| 3 | Tier stored, minutes derived, nothing totalled | Corrections and retuning recompute for free | Critical |
+| 4 | Weekly personal target of 150 min with progress | Best-evidenced motivational element, non-comparative | Critical |
+| 5 | Guild standings, weekly and season | The competition, without permanent last place | Critical |
+| 6 | Group onboarding via `?startgroup=<guild>` | No admin work per guild | Critical |
+| 7 | Monday post, fresh-start framed | Retention, at the landmark that works | Critical |
+| 8 | Daily reminder, user-timed, self-silencing | Attacks forgetting, which tap-count cannot | Critical |
+| 9 | Config file for guilds, dates, tiers, target | Operability | Critical |
+| 10 | Pinned live standings | Ambient, silent, reuses the renderer | High |
+| 11 | Toast confirmations via `answerCallbackQuery` | No message clutter, no lifecycle to manage | High |
+| 12 | Undo | Misclicks are certain when one tap commits | High |
+| 13 | `/me` with weekly progress, streak, neighbours | Personal feedback without a global ranking | High |
+| 14 | Weekly streak counter | Loss aversion without punishing rest | High |
+| 15 | Scoped command menus | Right commands in the right chat | High |
 
 ### Deferred
 
-Individual top-20 leaderboard; backdating beyond yesterday; "guild X overtook guild Y" alerts;
-inline-mode stat sharing via `answerInlineQuery`; weekly digest DMs; guild board admin rights
-derived from `getChatAdministrators`; reactions as cheers; polls; per-guild forum topics; rendered
-image standings; rank-history charts.
+Optional activity tags in the weekly post; backdating beyond yesterday; overtake alerts; inline
+stat sharing; guild board self-service admin; per-guild forum topics; rendered image standings.
 
 ### Rejected, with reasons
 
 | Rejected | Reason |
 |---|---|
-| Mini App | Reintroduces public HTTPS, a domain, TLS, auth and a frontend build, in order to display a list that renders fine as text. Nothing in the Critical band requires it |
-| Browser access via Login Widget | Non-Telegram users cannot log activities anyway, so read access does not make them participants |
-| Weekly point caps | Per-capita scoring over total membership already divides any single outlier by several hundred. A daily sanity cap achieves nearly the same protection in one line |
-| GPS or distance verification | The API offers nothing that verifies effort. Live location is invasive and still proves nothing |
-| Custom admin panel | Config file plus restart is sufficient for nine guilds and one organiser |
-| Telegram Stars or gifts as prizes | Costs real money and is orthogonal to the software |
-| Story sharing and emoji-status badges | Genuinely appealing, but both are Mini App exclusive and therefore cost the entire rejected Mini App |
+| Sport taxonomy and MET values | The only mechanism that can produce a fairness dispute, and per-capita scoring discards the precision it buys |
+| Global individual leaderboard | Accumulates perceived failure for exactly the population the competition targets |
+| Any "support your guildmates" feature | Measurably backfires: team support halved exercise versus competition, by drawing attention to the least active |
+| Daily streaks | WHO recommends 150 to 300 min per week, not daily activity. A daily streak teaches that rest is failure |
+| Free-form minutes entry | Invites false precision, removes the honesty cap, and turns one tap into typing |
+| Mini App | Reintroduces HTTPS, a domain, TLS and a frontend build to display a list |
+| Weekly point caps | The tier cap already bounds a day, so a separate weekly cap is redundant |
+| Distance, GPS or photo verification | Nothing available verifies effort, and location is invasive without being convincing |
 
 ---
 
-## 8. Expected size
+## 8. Architecture and deployment
 
-Roughly 700 to 900 lines, against roughly 4,250 in the predecessor's `src/` plus its web app.
-Deployment is two containers on one machine.
+```
+Telegram  <--long polling-->  bot process  <-->  PostgreSQL
+```
+
+Long polling means outbound connections only: no domain, no certificate, no open ports. Telegram
+retains undelivered updates for 24 hours, so a short outage costs nothing.
+
+Two containers on one small machine. **1 vCPU, 2 GB RAM, 20 GB disk** is comfortable, roughly €3.50
+to €6 a month, or zero on an existing home server. A nightly `pg_dump` shipped off the box is the
+one operational thing not to skip.
+
+Estimated size is roughly 800 to 1,000 lines.
 
 ---
 
 ## 9. Open questions
 
-These are genuinely undecided and are not blocking the prototype.
-
-1. **Is there a next competition, and when?** No date is currently set. If a deadline appears, the
-   line in section 7 may need to move up further for the first run. Everything in the design assumes
-   a single competition period defined in config.
-2. **Where exactly the line sits.** Items 14 to 18 in the deferred list, particularly the individual
-   leaderboard, overtake alerts and inline sharing, are the most likely candidates for promotion.
-3. **Language.** The predecessor was English-only. Whether the rewrite needs Finnish, or both, is
-   undecided. It affects only the text module.
-4. **Whether the Winter 2025-2026 competition actually ran**, and if so what its participation and
-   dropoff looked like. Real usage data would override several of the judgements above.
+1. **Competition length and dates.** No date is set. The evidence points to **6 to 8 weeks**:
+   workplace challenges usually run 2 to 6, engagement declines with novelty, and an 8-week
+   programme shows a documented dip around week 7. A full term is longer than the literature
+   supports, and habit formation at a median 66 days is not achievable inside any of these windows
+   anyway.
+2. **Language.** English, Finnish, or both. Affects only the text module.
+3. **Reminder default.** Whether reminders are on by default with the five-ignore auto-stop, or
+   strictly opt-in. Default-on is where the value is; opt-in is safer and will reach far fewer
+   people.
+4. **Whether guild membership counts are current.** They are the per-capita denominator, so a stale
+   count silently distorts every comparison, and changing one mid-competition changes all history.
