@@ -3,7 +3,8 @@
 A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
 University student guilds. One tap per day, guilds ranked on minutes per member.
 
-**Status:** specified, not started. Three questions in [SPEC.md](SPEC.md) §9 block implementation.
+**Status:** specified, not started. English, and reminders are a per-user choice. Competition dates
+are the only open question ([SPEC.md](SPEC.md) §9), and they block only the config file.
 
 ## Start here
 

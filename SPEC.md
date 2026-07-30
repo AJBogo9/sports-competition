@@ -1,7 +1,8 @@
 # Guild Activity Competition: Specification
 
 **Last updated:** 2026-07-30
-**Status:** Requirements agreed. Not started. No competition date set.
+**Status:** Requirements agreed. Not started. Language and reminder behaviour decided; competition
+dates still under discussion (section 9, Q1) and are the only thing blocking a start.
 **Companion documents:** [docs/evidence.md](docs/evidence.md) for citations,
 [prototype/bot-flows.html](prototype/bot-flows.html) for the interaction mockup.
 
@@ -240,9 +241,14 @@ create a duplicate or silently change the user's guild. It SHOULD offer an expli
 *Accept:* tapping a different guild's link as an existing user does not move the user without
 confirmation.
 
-**FR-4. Reminder preference at signup.** Immediately after registering, the bot MUST ask for a
-reminder hour, and skipping MUST be permitted and MUST leave reminders off.
-*Accept:* a user who skips receives no reminders; a user who picks 20:00 has that stored.
+**FR-4. Reminder choice at signup.** Immediately after registering, the bot MUST ask whether the
+user wants a daily reminder and at what hour. Declining MUST be permitted and MUST leave reminders
+off. There MUST be no silent default in either direction.
+*Accept:* a user who declines receives no reminders; a user who picks 20:00 has that hour stored.
+
+Since this single question decides whether the feature reaches anyone, it MUST present a
+recommended option rather than read as a step to be skipped past. Phrase it as a real choice
+between two named outcomes, not as "set a reminder time (optional)".
 
 ### Reporting
 
@@ -325,17 +331,29 @@ week starts at zero.
 MUST send it only to users who have not yet recorded that day.
 *Accept:* a user who logged at 14:00 receives nothing at 20:00.
 
-**FR-22. Automatic silencing.** After **five consecutive** reminders with no response, reminders
-MUST stop automatically.
-*Accept:* the sixth consecutive unanswered reminder is never sent.
+**FR-22. Check in after repeated non-response.** After **five consecutive** reminders with no
+response, the bot MUST stop sending the daily reminder and MUST send one message asking whether to
+continue, offering "keep them" and "turn them off". If that message is also ignored, reminders stay
+paused and the message MUST have said how to turn them back on.
+*Accept:* the sixth consecutive daily reminder is never sent; exactly one follow-up is sent; a user
+who taps "keep them" resumes immediately.
+
+**Rationale for the change.** An earlier draft silently stopped reminders at five. Now that
+reminders are something the user explicitly asked for (Q2, section 9), silently revoking their
+choice is wrong: they might simply have been away. Asking protects against the real risk, which is
+that an ignored daily message eventually gets the bot blocked, and a blocked user is permanently
+unreachable (section 3.2).
 
 **FR-23. Block handling.** A 403 response MUST be recorded and MUST permanently stop sends to that
 user.
 *Accept:* a blocked user is never retried.
 
-**FR-24. User control.** Reminders MUST be switchable off and back on, and the hour MUST be
-changeable.
-*Accept:* a command exists for both and takes effect the same day.
+**FR-24. User control.** Reminders MUST be switchable off and back on at any time, and the hour
+MUST be changeable, through a command that is discoverable from the command menu rather than only
+documented in help text. Turning them off MUST take effect immediately, including for a reminder
+already scheduled for later the same day.
+*Accept:* a user who turns reminders off at 19:00 receives nothing at 20:00; turning them back on
+restores the previously chosen hour.
 
 ### Administration
 
@@ -347,6 +365,12 @@ no admin UI.
 **FR-26. Competition window.** Reports outside the configured competition window MUST NOT count
 toward standings.
 *Accept:* a backdated entry before the start date is rejected or excluded.
+
+**FR-27. English only.** All user-facing text MUST be English. There MUST NOT be a per-user
+language setting, an internationalisation framework, or a translation workflow. Guild names are
+used as they are written in configuration.
+*Accept:* every string a user can see is English, and adding a second language would be a new
+feature rather than filling in an existing table.
 
 ---
 
@@ -466,22 +490,36 @@ Read this before re-adding any of them.
 
 ## 9. Open questions
 
-**These three block implementation.**
+### Still open
 
-**Q1. Competition length and dates.** Unresolved, and it affects the scoring window, the number of
+**Q1. Competition length and dates.** Under discussion. Affects the scoring window, the number of
 weekly resets, and the guild pitch. The evidence points to **6 to 8 weeks**: workplace step
 challenges typically run 2 to 6 weeks, and in a 1,779-person trial the competition effect fell from
 roughly 185 extra steps per day in week 1 to about 26 by week 12. A full term is longer than the
 evidence supports.
 
-**Q2. Are reminders on by default?** Default-on with the five-ignore auto-stop is where the value
-is, since forgetting is the dominant failure mode. Opt-in is safer but will reach a fraction of
-people. A middle option: on for the first week, continuing only for people who engaged with it at
-least once.
+This is now the **only question blocking implementation**, and it blocks only the configuration
+file. Phases 1 and 2 of section 10 can be built against a placeholder window.
 
-**Q3. Language.** English, Finnish, or both. Affects only the text module, but affects it entirely.
+### Decided
 
-**Also unresolved but not blocking:**
+**Q2. Reminders are a user choice, not a default.** *Decided 2026-07-30.* Every user is asked at
+registration and can change it at any time. There is no silent default in either direction: nobody
+is opted into daily messages without agreeing, and nobody has to discover a buried setting to get
+them. See FR-4, FR-22 and FR-24.
+
+The tradeoff, recorded honestly: an explicit ask will reach fewer people than defaulting everyone
+to on, and forgetting is the dominant failure mode this feature exists to address. Two things
+offset it. The wording of the single registration question does most of the work, so it should
+present a recommended option rather than read as a skippable step (FR-4). And the Monday guild-chat
+post reaches everyone in the group regardless of their personal setting, so turning reminders off
+is not total silence.
+
+**Q3. Language is English.** *Decided 2026-07-30.* Single locale, so no internationalisation
+framework, no per-user language field, and no translation workflow. Guild names are used as they
+are. See FR-27.
+
+### Unresolved but not blocking
 
 - Are the guild member counts in section 1 current? They are the per-capita denominator.
 - Are all nine guilds actually willing to add a bot to their group chat? Any guild that does not
