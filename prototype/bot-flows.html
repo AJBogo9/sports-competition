@@ -1,0 +1,1104 @@
+<title>Guild Activity Competition: Bot Prototype</title>
+
+<style>
+  /* ---------------------------------------------------------------
+     Design plan
+     Color   chalk / graphite achromatic ground. The ONLY saturated
+             colour on the page is meaningful: the four-step MET
+             intensity ramp (cool -> hot), whose hottest step doubles
+             as the interface accent. Telegram's own blue appears
+             only inside the device mock, where it belongs.
+     Type    monospace as the display and data face (a results sheet
+             is set in mono), system sans for running prose, and a
+             Telegram-native stack inside the device.
+     Layout  a timing sheet: a sticky device on the left, a stepped
+             commentary rail on the right, ruled full-width sections
+             below.
+     --------------------------------------------------------------- */
+
+  :root {
+    --paper:      #F4F5F2;
+    --paper-2:    #EAECE7;
+    --ink:        #12171A;
+    --ink-soft:   #39434A;
+    --muted:      #69747A;
+    --rule:       #DCE0DA;
+    --rule-soft:  #E7EAE4;
+
+    /* MET intensity ramp: light, moderate, vigorous, very vigorous */
+    --met-1:      #5E8AA0;
+    --met-2:      #6F9457;
+    --met-3:      #C08A34;
+    --met-4:      #B14A2B;
+    --accent:     var(--met-4);
+    --accent-ink: #FFFFFF;
+
+    /* device */
+    --tg-chrome:  #FFFFFF;
+    --tg-wall:    #E4E7E0;
+    --tg-in:      #FFFFFF;
+    --tg-out:     #E9F5D9;
+    --tg-text:    #14181B;
+    --tg-meta:    #7E888C;
+    --tg-blue:    #3390EC;
+    --tg-btn:     #F4F6F8;
+    --tg-btn-line:#DFE4E8;
+    --tg-shadow:  0 1px 2px rgba(16, 22, 26, .13);
+
+    --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono",
+                 "IBM Plex Mono", Menlo, Consolas, monospace;
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    --font-tg:   -apple-system, system-ui, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+
+    --measure: 64ch;
+    --shell: 1120px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #14181A;
+      --paper-2:    #1B2023;
+      --ink:        #E4E8E2;
+      --ink-soft:   #B4BCBB;
+      --muted:      #8A9497;
+      --rule:       #2A3134;
+      --rule-soft:  #21272A;
+
+      --met-1:      #7FB0C6;
+      --met-2:      #93BC77;
+      --met-3:      #DFAA55;
+      --met-4:      #E0714C;
+      --accent-ink: #14181A;
+
+      --tg-chrome:  #1D2225;
+      --tg-wall:    #0F1315;
+      --tg-in:      #232A2E;
+      --tg-out:     #2B4A5E;
+      --tg-text:    #E8ECEA;
+      --tg-meta:    #8C979B;
+      --tg-blue:    #6AB2F2;
+      --tg-btn:     #2A3236;
+      --tg-btn-line:#39433F;
+      --tg-shadow:  0 1px 2px rgba(0, 0, 0, .4);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --paper:      #F4F5F2;  --paper-2:    #EAECE7;
+    --ink:        #12171A;  --ink-soft:   #39434A;
+    --muted:      #69747A;  --rule:       #DCE0DA;
+    --rule-soft:  #E7EAE4;
+    --met-1: #5E8AA0; --met-2: #6F9457; --met-3: #C08A34; --met-4: #B14A2B;
+    --accent-ink: #FFFFFF;
+    --tg-chrome:  #FFFFFF;  --tg-wall:    #E4E7E0;
+    --tg-in:      #FFFFFF;  --tg-out:     #E9F5D9;
+    --tg-text:    #14181B;  --tg-meta:    #7E888C;
+    --tg-blue:    #3390EC;  --tg-btn:     #F4F6F8;
+    --tg-btn-line:#DFE4E8;
+    --tg-shadow:  0 1px 2px rgba(16, 22, 26, .13);
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #14181A;  --paper-2:    #1B2023;
+    --ink:        #E4E8E2;  --ink-soft:   #B4BCBB;
+    --muted:      #8A9497;  --rule:       #2A3134;
+    --rule-soft:  #21272A;
+    --met-1: #7FB0C6; --met-2: #93BC77; --met-3: #DFAA55; --met-4: #E0714C;
+    --accent-ink: #14181A;
+    --tg-chrome:  #1D2225;  --tg-wall:    #0F1315;
+    --tg-in:      #232A2E;  --tg-out:     #2B4A5E;
+    --tg-text:    #E8ECEA;  --tg-meta:    #8C979B;
+    --tg-blue:    #6AB2F2;  --tg-btn:     #2A3236;
+    --tg-btn-line:#39433F;
+    --tg-shadow:  0 1px 2px rgba(0, 0, 0, .4);
+  }
+
+  /* ---------------------------------------------------------- base */
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: var(--shell);
+    margin-inline: auto;
+    padding-inline: clamp(1.15rem, 4vw, 2.5rem);
+  }
+
+  p { max-width: var(--measure); }
+
+  a {
+    color: inherit;
+    text-decoration-color: var(--accent);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1.5px;
+  }
+  a:hover { color: var(--accent); }
+
+  :where(a, button, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: .6875rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  h1, h2, h3 { font-family: var(--font-mono); font-weight: 600; text-wrap: balance; }
+
+  h1 {
+    font-size: clamp(1.9rem, 4.6vw, 3rem);
+    letter-spacing: -.035em;
+    line-height: 1.06;
+    margin: .6rem 0 0;
+  }
+  h2 {
+    font-size: clamp(1.2rem, 2.3vw, 1.5rem);
+    letter-spacing: -.02em;
+    margin: 0;
+  }
+  h3 {
+    font-size: .95rem;
+    letter-spacing: -.01em;
+    margin: 0;
+  }
+
+  .lede {
+    font-size: clamp(1rem, 1.5vw, 1.1rem);
+    color: var(--ink-soft);
+    margin: 1.1rem 0 0;
+  }
+
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  /* -------------------------------------------------------- masthead */
+
+  .masthead {
+    padding-block: clamp(2.5rem, 6vw, 4rem) clamp(1.75rem, 3.5vw, 2.5rem);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .masthead-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1.5rem;
+    margin-top: 1.75rem;
+    font-family: var(--font-mono);
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .masthead-meta span { white-space: nowrap; }
+  .masthead-meta b { color: var(--ink); font-weight: 600; }
+
+  /* ---------------------------------------------------------- layout */
+
+  section { border-bottom: 1px solid var(--rule); }
+  .band { padding-block: clamp(2.25rem, 5vw, 3.5rem); }
+
+  .band-head { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 2rem; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: clamp(1.75rem, 4vw, 3.5rem);
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: minmax(0, 1fr); }
+    .device-col { position: static !important; justify-self: center; }
+  }
+
+  .device-col { position: sticky; top: 1.5rem; display: flex; flex-direction: column; gap: .9rem; }
+
+  /* ---------------------------------------------------------- device */
+
+  .device {
+    width: 340px;
+    max-width: 100%;
+    height: 620px;
+    border: 1px solid var(--rule);
+    border-radius: 22px;
+    background: var(--tg-chrome);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 18px 40px -28px rgba(10, 18, 22, .55);
+  }
+
+  .device-bar {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .7rem .85rem;
+    border-bottom: 1px solid var(--tg-btn-line);
+    background: var(--tg-chrome);
+    flex: none;
+  }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--met-2);
+    display: grid; place-items: center;
+    font-family: var(--font-mono);
+    font-size: .7rem; font-weight: 700;
+    color: #fff;
+    flex: none;
+  }
+  .device-title { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .device-title strong {
+    font-family: var(--font-tg);
+    font-size: .86rem;
+    color: var(--tg-text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .device-title span { font-size: .72rem; color: var(--tg-meta); }
+
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: .85rem .7rem 1rem;
+    background: var(--tg-wall);
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    font-family: var(--font-tg);
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) { .chat { scroll-behavior: auto; } }
+
+  .pill {
+    align-self: center;
+    background: color-mix(in srgb, var(--tg-text) 12%, transparent);
+    color: var(--tg-text);
+    font-size: .68rem;
+    padding: .22rem .6rem;
+    border-radius: 999px;
+    text-align: center;
+  }
+
+  .bubble {
+    max-width: 86%;
+    padding: .5rem .65rem .42rem;
+    border-radius: 12px;
+    font-size: .83rem;
+    line-height: 1.45;
+    color: var(--tg-text);
+    box-shadow: var(--tg-shadow);
+    white-space: pre-wrap;
+    animation: rise .22s ease-out;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(5px); } }
+  @media (prefers-reduced-motion: reduce) { .bubble { animation: none; } }
+
+  .bubble.in  { align-self: flex-start; background: var(--tg-in);  border-bottom-left-radius: 4px; }
+  .bubble.out { align-self: flex-end;   background: var(--tg-out); border-bottom-right-radius: 4px; }
+  .bubble b { font-weight: 600; }
+  .bubble .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: .78rem; }
+  .bubble .stamp { display: block; font-size: .63rem; color: var(--tg-meta); text-align: right; margin-top: .2rem; }
+
+  /* link preview card, for the deep link beat */
+  .linkcard {
+    border-left: 3px solid var(--tg-blue);
+    padding-left: .55rem;
+    margin-bottom: .4rem;
+  }
+  .linkcard b { color: var(--tg-blue); display: block; font-size: .78rem; }
+  .linkcard span { font-size: .75rem; color: var(--tg-meta); }
+
+  /* inline keyboard */
+  .kb { display: flex; flex-direction: column; gap: 3px; margin-top: .45rem; }
+  .kb-row { display: flex; gap: 3px; }
+  .kb button {
+    flex: 1;
+    font: inherit;
+    font-size: .76rem;
+    padding: .42rem .3rem;
+    border: 1px solid var(--tg-btn-line);
+    border-radius: 7px;
+    background: var(--tg-btn);
+    color: var(--tg-blue);
+    cursor: pointer;
+    transition: background .12s ease, transform .12s ease;
+  }
+  .kb button:hover { background: color-mix(in srgb, var(--tg-blue) 12%, var(--tg-btn)); }
+  .kb button:active { transform: scale(.975); }
+  .kb button[disabled] { color: var(--tg-meta); cursor: default; opacity: .55; }
+
+  /* callback toast */
+  .toast {
+    position: absolute;
+    left: 50%;
+    top: 3.6rem;
+    transform: translate(-50%, -14px);
+    z-index: 5;
+    max-width: 88%;
+    background: rgba(20, 26, 30, .93);
+    color: #fff;
+    font-family: var(--font-tg);
+    font-size: .76rem;
+    padding: .5rem .8rem;
+    border-radius: 9px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: opacity .18s ease; } }
+
+  .composer {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem .75rem;
+    border-top: 1px solid var(--tg-btn-line);
+    background: var(--tg-chrome);
+    font-family: var(--font-tg);
+    font-size: .8rem;
+    color: var(--tg-meta);
+  }
+  .composer .slash {
+    font-family: var(--font-mono);
+    border: 1px solid var(--tg-btn-line);
+    border-radius: 5px;
+    padding: .1rem .35rem;
+    font-size: .7rem;
+  }
+
+  .device-tools { display: flex; gap: .5rem; align-items: center; }
+  .ghost {
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: .38rem .7rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color .14s ease, border-color .14s ease;
+  }
+  .ghost:hover { color: var(--ink); border-color: var(--ink); }
+
+  /* ------------------------------------------------------------ rail */
+
+  .rail { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+
+  .rail li {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    gap: 1.25rem;
+    padding: 1.1rem 0;
+    border-top: 1px solid var(--rule-soft);
+    opacity: .42;
+    transition: opacity .2s ease;
+  }
+  .rail li:first-child { border-top: 0; }
+  .rail li.on { opacity: 1; }
+  .rail li.done { opacity: .72; }
+
+  .rail .tag {
+    font-family: var(--font-mono);
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: .18rem;
+  }
+  .rail li.on .tag { color: var(--accent); }
+  .rail .body h3 { margin-bottom: .3rem; }
+  .rail .body p { margin: 0; font-size: .89rem; color: var(--ink-soft); }
+  .rail code {
+    font-family: var(--font-mono);
+    font-size: .82em;
+    background: var(--paper-2);
+    padding: .08em .34em;
+    border-radius: 3px;
+  }
+
+  /* ---------------------------------------------------------- panels */
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: clamp(1.25rem, 3vw, 2.25rem);
+  }
+
+  .panel {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper-2);
+    padding: 1.25rem 1.35rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: .7rem;
+  }
+  .panel p { margin: 0; font-size: .89rem; color: var(--ink-soft); max-width: none; }
+
+  .render {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: .76rem;
+    line-height: 1.55;
+    background: var(--tg-in);
+    color: var(--tg-text);
+    border: 1px solid var(--tg-btn-line);
+    border-radius: 10px;
+    padding: .8rem .9rem;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+  }
+
+  .pinbar {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    font-family: var(--font-mono);
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--tg-blue);
+    border-left: 3px solid var(--tg-blue);
+    padding: .1rem 0 .1rem .5rem;
+    margin-bottom: .5rem;
+  }
+  .pinbar em { font-style: normal; color: var(--tg-meta); letter-spacing: .04em; text-transform: none; }
+
+  /* ----------------------------------------------------------- table */
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 540px; }
+  th, td { text-align: left; padding: .58rem .8rem .58rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--font-mono);
+    font-size: .67rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom-color: var(--rule);
+  }
+  td.k { font-family: var(--font-mono); font-size: .8rem; white-space: nowrap; }
+  td.v { color: var(--ink-soft); }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: .65rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: .12rem .45rem;
+    border-radius: 3px;
+    white-space: nowrap;
+    color: var(--accent-ink);
+  }
+  .chip.crit { background: var(--met-4); }
+  .chip.high { background: var(--met-3); }
+  .chip.out  { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
+
+  /* ------------------------------------------------------------ misc */
+
+  .notes { display: flex; flex-direction: column; gap: 1.15rem; margin: 0; padding: 0; }
+  .notes > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: .3rem; }
+  .notes h3 { color: var(--ink); }
+  .notes p { margin: 0; font-size: .92rem; color: var(--ink-soft); }
+
+  footer { padding-block: 2.5rem 3.5rem; color: var(--muted); font-family: var(--font-mono); font-size: .74rem; }
+  footer p { max-width: none; }
+</style>
+
+<header class="masthead">
+  <div class="shell">
+    <p class="eyebrow">Prototype, not implementation</p>
+    <h1>Guild Activity<br>Competition</h1>
+    <p class="lede">
+      Every screen the bot will ever show, in one page. Tap through the flows below and decide
+      whether the interaction is worth building before a line of it exists.
+    </p>
+    <div class="masthead-meta">
+      <span>Scope <b>13 features</b></span>
+      <span>Estimate <b>700 to 900 lines</b></span>
+      <span>Surfaces <b>DM and guild group chat</b></span>
+      <span>Mini App <b>none</b></span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="shell band">
+    <div class="band-head">
+      <p class="eyebrow">Flow one</p>
+      <h2>Register, then log an activity</h2>
+      <p>
+        This is the whole product. If these taps do not feel fast, nothing further down the page
+        will save it. The rail on the right names the mechanic behind each step.
+      </p>
+    </div>
+
+    <div class="stage">
+      <div class="device-col">
+        <div class="device">
+          <div class="device-bar">
+            <div class="avatar">LB</div>
+            <div class="device-title">
+              <strong>Liikuntahaaste</strong>
+              <span id="presence">bot</span>
+            </div>
+          </div>
+          <div class="chat" id="chat"></div>
+          <div class="toast" id="toast"></div>
+          <div class="composer">
+            <span class="slash">/</span>
+            <span id="composer-hint">Message</span>
+          </div>
+        </div>
+        <div class="device-tools">
+          <button class="ghost" id="replay" type="button">Replay</button>
+          <span class="eyebrow" id="stepcount">Step 1 of 5</span>
+        </div>
+      </div>
+
+      <ol class="rail" id="rail">
+        <li data-step="0">
+          <div class="tag">Deep link</div>
+          <div class="body">
+            <h3>One tap registers you</h3>
+            <p>
+              The guild posts <code>t.me/bot?start=prodeko</code> in its own chat. Opening it sends
+              <code>/start prodeko</code>, and the guild is known before the first screen renders.
+              There is no guild picker to build.
+            </p>
+          </div>
+        </li>
+        <li data-step="1">
+          <div class="tag">Keyboard</div>
+          <div class="body">
+            <h3>Pick what you did</h3>
+            <p>
+              Twelve activities, each with one MET value cited from the 2024 Compendium. A flat list,
+              not a four level hierarchy, because MET values cluster tightly enough that the extra
+              precision buys nothing.
+            </p>
+          </div>
+        </li>
+        <li data-step="2">
+          <div class="tag">Edit in place</div>
+          <div class="body">
+            <h3>Pick how long</h3>
+            <p>
+              The same message is rewritten with <code>editMessageText</code> rather than a new one
+              being sent. One message carries the whole flow, so there is no message lifecycle to
+              manage and nothing to clean up afterwards.
+            </p>
+          </div>
+        </li>
+        <li data-step="3">
+          <div class="tag">Toast</div>
+          <div class="body">
+            <h3>Confirmation without clutter</h3>
+            <p>
+              <code>answerCallbackQuery</code> shows a notification over the chat instead of sending
+              a message. This is what the previous version spent 208 lines of message bookkeeping
+              trying to achieve.
+            </p>
+          </div>
+        </li>
+        <li data-step="4">
+          <div class="tag">Read time</div>
+          <div class="body">
+            <h3>Standings on demand</h3>
+            <p>
+              Nothing was incremented when the activity was logged. Every number here is summed from
+              <code>met &times; minutes</code> at the moment you ask, so undo, backdating and MET
+              corrections all just work.
+            </p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shell band">
+    <div class="band-head">
+      <p class="eyebrow">Flow two</p>
+      <h2>The guild group chat</h2>
+      <p>
+        Logging happens in a private chat because privacy mode gives the bot no other option worth
+        taking. The group chat gets the part that private messages cannot do: several hundred people
+        watching the same number move.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="pinbar">Pinned message <em>updated 4 minutes ago</em></div>
+<pre class="render">GUILD STANDINGS            day 34 of 92
+points per member, all 4,650 counted
+
+ 1  Prodeko             8.4   +0.6  up 1
+ 2  TiK                 8.1   +0.3  down 1
+ 3  Inkubio             7.6   +0.4   =
+ 4  Athene              6.9   +0.2   =
+ 5  SIK                 6.2   +0.5  up 1
+ 6  FK                  5.8   +0.1  down 1
+ 7  MK                  5.1   +0.3   =
+ 8  AS                  4.7   +0.2   =
+ 9  Aalto Accounting    3.9   +0.1   =
+
+Prodeko  84 of 650 active  ·  12.9%</pre>
+        <p>
+          Edited on a timer, never resent. Message edits do not notify anyone, so this stays current
+          and silent, permanently visible at the top of the chat. Roughly forty lines on top of the
+          renderer that already exists for <code>/standings</code>.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="pinbar">Weekly post <em>Mondays, 09:00</em></div>
+<pre class="render">Week 5 is done.
+
+Prodeko took first place from TiK
+overnight, by 0.3 points per member.
+
+Biggest climb    SIK, up 1 place
+Most active      Inkubio, 21.5% logging
+Guild total      Prodeko 5,460 points
+
+Log yours with /log in a private chat.</pre>
+        <p>
+          A new message, so it does notify, landing as a weekly event rather than ambient
+          information. The same renderer again. Nine guild chats, well inside the 30 messages per
+          second limit.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shell band">
+    <div class="band-head">
+      <p class="eyebrow">Scope</p>
+      <h2>What each screen costs</h2>
+      <p>
+        Value is scored against how a guild competition actually fails, rather than against how
+        interesting the feature is to build.
+      </p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Screen or behaviour</th>
+            <th>Failure it prevents</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="k">Deep link registration</td>
+            <td class="v">Nobody signs up</td>
+            <td><span class="chip crit">Critical</span></td>
+          </tr>
+          <tr>
+            <td class="k">Activity and duration keyboards</td>
+            <td class="v">Signs up, never logs</td>
+            <td><span class="chip crit">Critical</span></td>
+          </tr>
+          <tr>
+            <td class="k">Points derived, never stored</td>
+            <td class="v">Scoring cannot be trusted or corrected</td>
+            <td><span class="chip crit">Critical</span></td>
+          </tr>
+          <tr>
+            <td class="k">Guild standings</td>
+            <td class="v">There is no competition</td>
+            <td><span class="chip crit">Critical</span></td>
+          </tr>
+          <tr>
+            <td class="k">Group onboarding by link</td>
+            <td class="v">No engagement loop exists at all</td>
+            <td><span class="chip crit">Critical</span></td>
+          </tr>
+          <tr>
+            <td class="k">Weekly post to guild chats</td>
+            <td class="v">Logs for a week, then stops</td>
+            <td><span class="chip crit">Critical</span></td>
+          </tr>
+          <tr>
+            <td class="k">Pinned live standings</td>
+            <td class="v">Logs for a week, then stops</td>
+            <td><span class="chip high">High</span></td>
+          </tr>
+          <tr>
+            <td class="k">Toast confirmations</td>
+            <td class="v">Chat becomes unusable clutter</td>
+            <td><span class="chip high">High</span></td>
+          </tr>
+          <tr>
+            <td class="k">Undo last entry</td>
+            <td class="v">A misclick is permanent</td>
+            <td><span class="chip high">High</span></td>
+          </tr>
+          <tr>
+            <td class="k">Daily sanity cap</td>
+            <td class="v">One cheater voids the result</td>
+            <td><span class="chip high">High</span></td>
+          </tr>
+          <tr>
+            <td class="k">Mini App</td>
+            <td class="v">Brings back HTTPS, a domain, TLS and a frontend to show a list</td>
+            <td><span class="chip out">Rejected</span></td>
+          </tr>
+          <tr>
+            <td class="k">Charts and rank history</td>
+            <td class="v">Looks good, changes no behaviour</td>
+            <td><span class="chip out">Deferred</span></td>
+          </tr>
+          <tr>
+            <td class="k">Weekly point caps</td>
+            <td class="v">Per capita scoring already divides outliers by hundreds</td>
+            <td><span class="chip out">Rejected</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shell band">
+    <div class="band-head">
+      <p class="eyebrow">Constraints</p>
+      <h2>Why the shape is the shape</h2>
+    </div>
+    <div class="grid-2">
+      <div class="notes">
+        <div>
+          <h3>Logging cannot live in the group chat</h3>
+          <p>
+            A bot in a group sees only messages addressed to it and replies to its own. Turning that
+            off would let it read every message in the guild chat, which no board should agree to
+            and which you should not ask for.
+          </p>
+        </div>
+        <div>
+          <h3>The bot cannot message anyone first</h3>
+          <p>
+            There is no way to invite or nudge a person who has not started it. Recruitment happens
+            entirely through links posted into guild chats. Once someone registers, weekly reminders
+            become available.
+          </p>
+        </div>
+      </div>
+      <div class="notes">
+        <div>
+          <h3>Long polling removes the servers</h3>
+          <p>
+            With no Mini App, the bot only makes outbound connections. No domain, no certificate, no
+            open ports, no Kubernetes. It runs on a home server or on a four euro VPS, and Telegram
+            holds undelivered updates for 24 hours, so a short outage costs nothing.
+          </p>
+        </div>
+        <div>
+          <h3>Membership counts are the denominator</h3>
+          <p>
+            Guilds are ranked on points per member across their whole roster, including everyone who
+            never logs anything. That is what makes recruiting the already active a losing strategy.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="shell">
+    <p>Design document: docs/superpowers/specs/2026-07-30-guild-activity-competition-design.md</p>
+    <p>Open: competition dates, language, and where exactly the deferred line sits.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var chat = document.getElementById("chat");
+  var toastEl = document.getElementById("toast");
+  var rail = document.getElementById("rail");
+  var stepCount = document.getElementById("stepcount");
+  var composerHint = document.getElementById("composer-hint");
+  var presence = document.getElementById("presence");
+
+  var TOTAL = 5;
+  var step = 0;
+  var live = null;      // the bot message currently being edited in place
+  var toastTimer = null;
+
+  var ACTIVITIES = [
+    ["Run", 9.0], ["Walk", 3.5], ["Cycle", 7.0],
+    ["Gym", 5.0], ["Swim", 6.0], ["Ball sports", 7.0],
+    ["Racket", 7.0], ["Ski", 9.0], ["Climb", 6.0],
+    ["Yoga", 3.0], ["Dance", 5.0], ["Other", 4.5]
+  ];
+
+  var chosen = null;
+  var total = 57.0;
+
+  function setStep(n) {
+    step = n;
+    Array.prototype.forEach.call(rail.children, function (li) {
+      var s = Number(li.getAttribute("data-step"));
+      li.classList.toggle("on", s === n);
+      li.classList.toggle("done", s < n);
+    });
+    stepCount.textContent = "Step " + (n + 1) + " of " + TOTAL;
+  }
+
+  function scroll() { chat.scrollTop = chat.scrollHeight; }
+
+  function keyboard(rows) {
+    var kb = document.createElement("div");
+    kb.className = "kb";
+    rows.forEach(function (row) {
+      var r = document.createElement("div");
+      r.className = "kb-row";
+      row.forEach(function (btn) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = btn.label;
+        if (btn.disabled) { b.disabled = true; }
+        else { b.addEventListener("click", btn.on); }
+        r.appendChild(b);
+      });
+      kb.appendChild(r);
+    });
+    return kb;
+  }
+
+  function bubble(side, html, rows, stamp) {
+    var el = document.createElement("div");
+    el.className = "bubble " + side;
+    el.innerHTML = html;
+    if (rows) { el.appendChild(keyboard(rows)); }
+    if (stamp) {
+      var s = document.createElement("span");
+      s.className = "stamp";
+      s.textContent = stamp;
+      el.appendChild(s);
+    }
+    chat.appendChild(el);
+    scroll();
+    return el;
+  }
+
+  function edit(el, html, rows) {
+    el.innerHTML = html;
+    if (rows) { el.appendChild(keyboard(rows)); }
+    scroll();
+  }
+
+  function pill(text) {
+    var el = document.createElement("div");
+    el.className = "pill";
+    el.textContent = text;
+    chat.appendChild(el);
+    scroll();
+    return el;
+  }
+
+  function toast(text) {
+    window.clearTimeout(toastTimer);
+    toastEl.textContent = text;
+    toastEl.classList.add("show");
+    toastTimer = window.setTimeout(function () {
+      toastEl.classList.remove("show");
+    }, 2600);
+  }
+
+  function fmt(n) { return n.toFixed(1); }
+
+  /* ------------------------------------------------------ the flow */
+
+  function menu() {
+    return [[
+      { label: "Log activity", on: askActivity },
+      { label: "My stats", on: showMe },
+      { label: "Standings", on: showStandings }
+    ]];
+  }
+
+  function start() {
+    chat.textContent = "";
+    live = null;
+    chosen = null;
+    total = 57.0;
+    presence.textContent = "bot";
+    composerHint.textContent = "Message";
+    setStep(0);
+
+    pill("Today");
+
+    bubble("in",
+      '<div class="linkcard"><b>Prodeko</b><span>Guild chat, pinned</span></div>' +
+      'Prodeko liikuntahaaste is live. Tap to join, you will be counted for Prodeko automatically.',
+      [[{ label: "t.me/liikuntahaastebot?start=prodeko", on: register }]]
+    );
+  }
+
+  function register() {
+    bubble("out", "/start prodeko", null, "18:42");
+    composerHint.textContent = "Message";
+
+    window.setTimeout(function () {
+      bubble("in",
+        "Moi Andreas. You are registered for <b>Prodeko</b>.\n\n" +
+        "Log something with <b>/log</b>. It takes two taps.\n" +
+        "Competition runs to 30 November, <b>58 days</b> left.",
+        menu(), "18:42"
+      );
+      setStep(1);
+    }, 380);
+  }
+
+  function askActivity() {
+    bubble("out", "/log", null, "18:43");
+    var rows = [];
+    for (var i = 0; i < ACTIVITIES.length; i += 3) {
+      rows.push(ACTIVITIES.slice(i, i + 3).map(function (a) {
+        return { label: a[0], on: function () { pickActivity(a[0], a[1]); } };
+      }));
+    }
+    window.setTimeout(function () {
+      live = bubble("in", "What did you do?", rows, "18:43");
+      setStep(1);
+    }, 260);
+  }
+
+  function pickActivity(name, met) {
+    chosen = { name: name, met: met };
+    setStep(2);
+    edit(live,
+      "<b>" + name + "</b> &middot; <span class=\"mono\">" + fmt(met) + " MET</span>\n" +
+      "How long?",
+      [
+        [15, 30, 45].map(mins),
+        [60, 90, 0].map(mins),
+        [
+          { label: "Yesterday", on: function () { toast("Date set to yesterday."); } },
+          { label: "Back", on: function () { setStep(1); askAgain(); } }
+        ]
+      ]
+    );
+  }
+
+  function mins(m) {
+    if (m === 0) { return { label: "Other", on: function () { toast("Type any number of minutes."); } }; }
+    return { label: m + " min", on: function () { logIt(m); } };
+  }
+
+  function askAgain() {
+    var rows = [];
+    for (var i = 0; i < ACTIVITIES.length; i += 3) {
+      rows.push(ACTIVITIES.slice(i, i + 3).map(function (a) {
+        return { label: a[0], on: function () { pickActivity(a[0], a[1]); } };
+      }));
+    }
+    edit(live, "What did you do?", rows);
+  }
+
+  function logIt(minutes) {
+    var pts = chosen.met * minutes / 60;
+    total += pts;
+    setStep(3);
+    toast("Logged. " + chosen.name + " " + minutes + " min, +" + fmt(pts) + " points");
+
+    edit(live,
+      "<b>" + chosen.name + "</b>, " + minutes + " min\n" +
+      '<span class="mono">' + fmt(chosen.met) + " MET &times; " + minutes +
+      " min / 60 = " + fmt(pts) + " points</span>\n\n" +
+      "Today &middot; your total <b>" + fmt(total) + "</b>",
+      [[
+        { label: "Undo", on: function () { undo(pts); } },
+        { label: "Log another", on: askActivity },
+        { label: "Standings", on: showStandings }
+      ]]
+    );
+  }
+
+  function undo(pts) {
+    total -= pts;
+    toast("Removed. Your total is back to " + fmt(total) + ".");
+    edit(live,
+      "Removed.\n\nYour total <b>" + fmt(total) + "</b>",
+      menu()
+    );
+    setStep(3);
+  }
+
+  function showMe() {
+    bubble("out", "/me", null, "18:45");
+    window.setTimeout(function () {
+      live = bubble("in",
+        "<b>Andreas</b> &middot; Prodeko\n" +
+        '<span class="mono">' +
+        "points        " + fmt(total) + "\n" +
+        "guild rank    12 of 84 active\n" +
+        "this week     18.0\n" +
+        "logged        14 activities, 9 days" +
+        "</span>",
+        menu(), "18:45"
+      );
+      setStep(4);
+    }, 260);
+  }
+
+  function showStandings() {
+    bubble("out", "/standings", null, "18:46");
+    window.setTimeout(function () {
+      live = bubble("in",
+        "<b>Guild standings</b> &middot; day 34 of 92\n" +
+        '<span class="mono">' +
+        " 1  Prodeko            8.4\n" +
+        " 2  TiK                8.1\n" +
+        " 3  Inkubio            7.6\n" +
+        " 4  Athene             6.9\n" +
+        " 5  SIK                6.2\n" +
+        " 6  FK                 5.8\n" +
+        " 7  MK                 5.1\n" +
+        " 8  AS                 4.7\n" +
+        " 9  Aalto Accounting   3.9" +
+        "</span>\n\n" +
+        "Points per member, counting every member.",
+        menu(), "18:46"
+      );
+      setStep(4);
+    }, 260);
+  }
+
+  document.getElementById("replay").addEventListener("click", start);
+  start();
+})();
+</script>
