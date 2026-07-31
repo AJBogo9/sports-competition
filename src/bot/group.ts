@@ -110,8 +110,12 @@ export function installGroup(bot: Bot, sql: Sql): void {
    *
    * The picker covers a client that skips the startBot call and the ordinary
    * case of someone adding the bot from the group's own Add Member screen,
-   * where there is no deep link at all. It is only offered when the chat has
-   * no binding yet, so a bot promoted to admin later does not re-ask.
+   * where there is no deep link at all. The guard below is findChat, which
+   * tests whether the chat is bound, not whether the picker was already
+   * shown. A bot added from the Add Member screen and then promoted to admin
+   * before anyone taps the picker gets a second my_chat_member update and
+   * posts a second, identical picker; harmless, but this is not a
+   * once-per-chat "does not re-ask" guard.
    */
   bot.on("my_chat_member", async (ctx) => {
     if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") return;
@@ -153,7 +157,23 @@ export function installGroup(bot: Bot, sql: Sql): void {
       return;
     }
 
-    if (!(await isChatAdmin(ctx, from.id))) {
+    let admin: boolean;
+    try {
+      admin = await isChatAdmin(ctx, from.id);
+    } catch (error) {
+      // Fix round 2 (final review), minor 5. getChatMember is the suspected
+      // failure point for an anonymous admin posting as GroupAnonymousBot: if
+      // it throws, the callback must still be answered here, or the tapping
+      // client spins forever waiting for a response that never comes (this
+      // handler has already claimed callback kind "bind", so it will not
+      // fall through to index.ts's catch-all, which only answers callbacks
+      // nothing else claimed). Answered with no text since admin status is
+      // unknown, and the error is rethrown unswallowed so it still reaches
+      // bot.catch.
+      await ctx.answerCallbackQuery();
+      throw error;
+    }
+    if (!admin) {
       await ctx.answerCallbackQuery(TOAST_ADMINS_ONLY);
       return;
     }

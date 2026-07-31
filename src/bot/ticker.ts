@@ -31,8 +31,17 @@ const PIN_REFRESH_MS = 15 * 60_000;
  */
 function isGone(error: unknown): boolean {
   if (!(error instanceof GrammyError)) return false;
-  const description = error.description.toLowerCase();
-  return error.error_code === 403 || description.includes("upgraded to a supergroup");
+  return error.error_code === 403 || isSupergroupUpgrade(error);
+}
+
+/**
+ * The narrower half of isGone(), factored out so tryPin below can rethrow on
+ * the supergroup-upgrade case alone without also trusting a bare 403 (fix
+ * round 2, final review, minor 4; see the comment in tryPin for why).
+ */
+function isSupergroupUpgrade(error: unknown): boolean {
+  if (!(error instanceof GrammyError)) return false;
+  return error.description.toLowerCase().includes("upgraded to a supergroup");
 }
 
 /**
@@ -130,7 +139,19 @@ async function tryPin(bot: Bot, chatId: string, messageId: string): Promise<bool
     await bot.api.pinChatMessage(chatId, Number(messageId), { disable_notification: true });
     return true;
   } catch (error) {
-    if (isGone(error)) throw error;
+    // Fix round 2 (final review), minor 4. isGone() treats any 403 as "bot
+    // removed from the chat" and unbinds on it, which is right for
+    // sendMessage/editMessageText but wrong here: pinChatMessage's 403 is
+    // Telegram's ordinary answer to "bot lacks the pin permission", exactly
+    // the recoverable case PIN_NEEDS_ADMIN exists to represent, not a gone
+    // chat. Trusting it here would unbind a chat that merely lacks one admin
+    // right, and a later rebind resets last_monday_week (phase 2 design 2.4),
+    // silently suppressing that week's Monday post. Only the
+    // supergroup-upgrade case is rethrown; a bot genuinely removed from the
+    // chat is still caught, because the very next sendMessage or
+    // editMessageText in refreshPin hits the same 403 and isGone() unbinds it
+    // there instead.
+    if (isSupergroupUpgrade(error)) throw error;
     return false;
   }
 }

@@ -17,8 +17,14 @@ await syncGuilds(sql);
 const bot = createBot(sql, token);
 await installCommands(bot);
 
-// FR-19 and FR-20. Stopped before the bot, so a shutdown cannot leave a tick
-// half-way through an API call the polling loop is no longer serving.
+// FR-19 and FR-20. Stopped before the bot: clearInterval only blocks the next
+// tick from starting, it cannot abort one already running. What the ordering
+// buys is that no new tick starts while bot.stop() is draining in-flight
+// updates. The window it does NOT close: a tick already running when
+// SIGINT/SIGTERM arrives keeps executing underneath this, and if the process
+// is killed before it finishes, a tick caught between sendMessage and
+// recordMondayPost in ticker.ts's sendMondayPost re-posts that week's Monday
+// message on the next boot, because recordMondayPost never ran to record it.
 const stopTicker = startTicker(bot, sql);
 
 process.once("SIGINT", () => { stopTicker(); void bot.stop(); });

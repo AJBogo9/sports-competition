@@ -39,6 +39,21 @@ message that keeps itself updated. Pinning needs the bot to be a chat admin with
 pin; without that permission the same message still appears and still updates, just unpinned,
 with a line asking for admin rights until it gets them.
 
+### Stopping the group chat features without stopping the bot
+
+There is no dedicated switch for this yet. Two levers exist today, and neither is free:
+
+- `docker compose stop bot` stops the ticker along with everything else: registration, `/log`,
+  `/me` and `/standings` all go down too, not just the pinned standings and the Monday post.
+- `DELETE FROM chats` (or a per-row delete) unbinds every affected group chat immediately, so the
+  ticker stops touching them on its next tick. **This is not a clean off switch.** The same row
+  also carries `pinned_message_id` and `last_monday_week`, so deleting it destroys both along with
+  the binding. If a board later rebinds the chat, the fresh row seeds `last_monday_week` to the
+  week of the rebind (see `bindChat` in `src/db/chats.ts`), which can suppress that week's Monday
+  post if it had not actually fired yet, and the message that was pinned before the delete is
+  orphaned: still pinned in the chat, but no longer tracked, so the bot can neither update nor
+  unpin it.
+
 **Never run the `test` compose profile (`db-test`) on the production host.** It binds a port on the
 host and uses a throwaway password; it exists only for `bun test` against a disposable database.
 

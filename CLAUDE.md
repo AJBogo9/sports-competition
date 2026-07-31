@@ -116,7 +116,8 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
   is unchanged.** Resending would notify a whole guild every 15 minutes, which is the opposite of
   FR-19.
 - **Size ceiling: 2,000 effective lines.** Passing it means something from SPEC.md §8 crept back in
-  (NFR-6). `src/` is currently around 1,100.
+  (NFR-6). `src/` is currently 1,510 effective lines; 490 lines of headroom remain before Phase 3
+  needs to budget against the ceiling.
 
 ## Conventions
 

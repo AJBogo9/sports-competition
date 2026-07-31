@@ -26,9 +26,16 @@ export interface Neighbour {
  * than a numeric string.
  *
  * `NOT u.blocked` is carried over from SPEC.md section 6 as written. It cannot
- * fire in Phase 1, because nothing sets `blocked` until FR-23 lands in Phase 3.
- * Revisit it then: it currently erases a blocked user's past activity from
- * their guild's total, which is a different thing from not messaging them.
+ * fire today, because nothing sets `blocked` until FR-23 lands in Phase 3, but
+ * this is a blocking gate on that future commit, not a someday revisit: once
+ * something sets `blocked`, this clause retroactively erases that user's past
+ * activity from their guild's season total, so the pinned message publishes
+ * the guild's score visibly dropping, which is impossible under this
+ * project's derive-everything model (SPEC.md section 4.4) and would read to
+ * several hundred people as data loss. `blocked` must gate outbound
+ * messaging only, never scoring. The commit that first sets `blocked` MUST
+ * also remove this clause here and the identical one in `participation()`
+ * below.
  *
  * The ORDER BY ends with g.slug as a tiebreaker to guarantee total ordering.
  * Guild names (g.name) are not unique in the schema, only slugs are the primary
@@ -139,11 +146,21 @@ export async function weeklyTotals(sql: Sql, telegramId: number): Promise<WeekTo
  * per-member number in the competition divides by, so the two cannot tell
  * different stories about the same guild.
  *
+ * If a guild's registrations ever exceed its configured member_count, this
+ * share exceeds 1 and renders as over 100% of the guild logging. Not
+ * reachable at today's 350 to 700 rosters, but CLAUDE.md records member
+ * counts as unverified, so this is left unclamped rather than hiding a real
+ * config error.
+ *
  * ::numeric before the division and ::float8 after, because Postgres integer
  * division would truncate 2 / 650 to 0.
  *
  * `NOT u.blocked` is carried over from the same clause in `standings()` and
- * `neighbours()`. It cannot fire until FR-23 lands in Phase 3; revisit it then.
+ * `neighbours()`. This is a blocking gate, not a someday revisit: see the
+ * note on `standings()` for why. The commit that first sets `blocked`
+ * (FR-23, Phase 3) MUST also remove this clause here, or a guild's published
+ * participation share retroactively drops the moment one of its members
+ * blocks the bot, the same silent-drop failure described there.
  */
 export async function participation(
   sql: Sql,
