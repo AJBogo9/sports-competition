@@ -10,7 +10,8 @@ decisions SPEC.md leaves open. Where the two disagree, SPEC.md wins and this doc
 
 It continues [the Phase 1 design](2026-07-30-telegram-bot-phase-1-design.md), whose architecture,
 stack and conventions carry over unchanged and are not restated. Code comments cite this document
-as "design 2.4.x" to distinguish it from Phase 1's "design 4.x".
+as "phase 2 design N.N" (for example "phase 2 design 4.5"), to distinguish it from the
+Phase 1 document, which its own code comments cite as "design 4.x".
 
 ---
 

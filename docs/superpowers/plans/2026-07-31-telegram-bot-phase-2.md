@@ -8,7 +8,7 @@
 
 **Tech Stack:** Bun, grammY, postgres.js, PostgreSQL 17. No new dependencies.
 
-**Spec:** [docs/superpowers/specs/2026-07-31-telegram-bot-phase-2-design.md](../specs/2026-07-31-telegram-bot-phase-2-design.md). Cited below as "design 2.4.x" matching the code-comment convention.
+**Spec:** [docs/superpowers/specs/2026-07-31-telegram-bot-phase-2-design.md](../specs/2026-07-31-telegram-bot-phase-2-design.md). Cited below as "phase 2 design N.N", matching the code-comment convention.
 
 ## Global Constraints
 
@@ -28,7 +28,7 @@ Every task's requirements implicitly include all of these. They are project-wide
 - **Imports carry explicit `.ts` extensions**, types use `import type`, `strict` and `noUncheckedIndexedAccess` are on.
 - **All user-facing text is English and lives in `src/strings.ts`** (FR-27). No i18n framework.
 - **No em dashes or en dashes anywhere,** including message copy and comments.
-- **Comments explain *why*, cite the requirement ID** (FR-x, NFR-x, design 2.4.x) and record rejected alternatives. Match the existing density; it is the house style.
+- **Comments explain *why*, cite the requirement ID** (FR-x, NFR-x, phase 2 design N.N) and record rejected alternatives. Match the existing density; it is the house style.
 - **Size ceiling: 2,000 effective lines** across `src/`. This phase budgets 200 to 250.
 - Tests: one isolated Postgres schema per file via `freshDatabase("<name>")`, ended in `afterAll`. Each file needs a unique bare-identifier name.
 
@@ -62,7 +62,7 @@ Create `src/db/migrations/002_chats.sql`:
 --
 -- last_monday_week is NOT NULL because NULL would read as "owed a post" and
 -- fire a "new week, back to zero" message at a chat bound on a Thursday
--- (design 2.2.4). Binding sets it to the current week.
+-- (phase 2 design 2.4). Binding sets it to the current week.
 CREATE TABLE chats (
   chat_id           BIGINT PRIMARY KEY,
   guild_slug        TEXT NOT NULL REFERENCES guilds(slug),
@@ -242,11 +242,11 @@ function toChat(record: ChatRecord): Chat {
  * FR-18. Binding and rebinding are one operation.
  *
  * ON CONFLICT updates guild_slug alone, deliberately: last_monday_week must
- * survive a rebind (design 2.3.1), or an admin could rebind a chat to force a
+ * survive a rebind (phase 2 design 3.1), or an admin could rebind a chat to force a
  * second Monday post in the same week. weekStart is therefore only ever used
  * for the initial insert, where it starts the ledger at the current week so a
  * chat bound mid-week does not immediately receive a "new week" post
- * (design 2.2.4).
+ * (phase 2 design 2.4).
  */
 export async function bindChat(
   sql: Sql,
@@ -283,7 +283,7 @@ export async function unbindChat(sql: Sql, chatId: string): Promise<void> {
 /**
  * FR-19. pinned_text is stored so the next refresh can skip an unchanged edit
  * rather than send it and collect Telegram's 400 "message is not modified"
- * (design 2.2.3). It is a rendered string and is never read back as data.
+ * (phase 2 design 2.3). It is a rendered string and is never read back as data.
  */
 export async function recordPin(
   sql: Sql,
@@ -450,7 +450,7 @@ Append to `src/db/standings.ts`:
  * FR-20. The share of a guild's roster that logged at least once in the range,
  * as a fraction between 0 and 1. The renderer turns it into a percentage.
  *
- * A rest day counts (design 2.4.3): FR-8 makes rest an explicit record rather
+ * A rest day counts (phase 2 design 4.3): FR-8 makes rest an explicit record rather
  * than an absence, and this number measures engagement rather than minutes.
  * That is why it joins days without joining tier_minutes at all.
  *
@@ -645,23 +645,23 @@ export function dayBefore(date: string): string {
  * FR-20. Whether this chat is owed a Monday post right now.
  *
  * Pure so that the interesting half of the ticker is testable without Telegram
- * and without a clock (design 2.4.6). Every date is a yyyy-mm-dd label in the
+ * and without a clock (phase 2 design 4.6). Every date is a yyyy-mm-dd label in the
  * competition timezone, which compares correctly as a plain string.
  *
  * Three rulings live here:
  *
  * - The condition is "no post for this week and past Monday's hour", NOT
- *   "today is Monday" (design 2.4.4). A bot that was down for all of Monday
+ *   "today is Monday" (phase 2 design 4.4). A bot that was down for all of Monday
  *   posts on Tuesday. Over an eight-week competition, missing a post entirely
  *   is worse than one arriving late, and the alternative fails silently in
  *   exactly the case where something has already gone wrong.
  * - No post when the previous week ENDS before the competition starts
- *   (design 2.4.5). On the first Monday there is no last week, and the generic
+ *   (phase 2 design 4.5). On the first Monday there is no last week, and the generic
  *   path would announce a winner at 0.0 minutes per member as the first thing
  *   every guild sees. Testing the end rather than the start keeps it correct
  *   if COMPETITION_START ever stops being a Monday.
  * - lastPosted is initialised to the binding week, so a chat bound mid-week is
- *   not owed a post for that week (design 2.2.4).
+ *   not owed a post for that week (phase 2 design 2.4).
  */
 export function shouldPostMonday(input: MondayPostDecision): boolean {
   const postHour = input.postHour ?? MONDAY_POST_HOUR;
@@ -706,7 +706,7 @@ In `src/strings.ts`, below `STANDINGS_FOOTER`:
 ```ts
 /**
  * FR-19. Appended to the pinned message when the bot could not pin it. The
- * message itself keeps working and keeps updating unpinned (design 2.3.2), so
+ * message itself keeps working and keeps updating unpinned (phase 2 design 3.2), so
  * this is one line of explanation rather than an error state: the board makes
  * the bot an admin when convenient and the next refresh pins it.
  */
@@ -856,7 +856,7 @@ export interface MondayPostInput {
  * badly the reader's guild did.
  *
  * The participation figure is about the reader's own guild, not the winner's
- * (design 2.4.3): it is the number the reader can actually change this week.
+ * (phase 2 design 4.3): it is the number the reader can actually change this week.
  *
  * Guild names come from config.ts and are trusted today; escaped defensively,
  * because this message reaches a whole guild chat.
@@ -988,7 +988,7 @@ function bindKeyboard(): InlineKeyboard {
  * The check cannot live on the picker callback alone: `/start@bot <slug>` is an
  * ordinary message, so without this any member of a several-hundred-person
  * chat could re-point the chat at a rival guild by typing one line
- * (design 2.3.1).
+ * (phase 2 design 3.1).
  *
  * Adding a bot to a group does not require admin in every group configuration,
  * so a non-admin who opens the link is refused here and the picker is left up
@@ -1004,7 +1004,7 @@ async function bind(ctx: Context, sql: Sql, chatId: string, slug: string): Promi
   if (!guild) return;
   // The binding week starts the Monday ledger at the current week, so a chat
   // bound on a Thursday is not immediately owed a "new week" post
-  // (design 2.2.4). Rebinding ignores it, see bindChat.
+  // (phase 2 design 2.4). Rebinding ignores it, see bindChat.
   const { weekStart } = await calendar(sql);
   await bindChat(sql, chatId, guild.slug, weekStart);
   await ctx.reply(chatBound(guild.name), { parse_mode: "HTML" });
@@ -1252,7 +1252,7 @@ const PIN_REFRESH_MS = 15 * 60_000;
 
 /**
  * Telegram errors that mean the chat is gone for good. The row is deleted so
- * the ticker stops retrying it forever (design 2.6). A supergroup upgrade
+ * the ticker stops retrying it forever (phase 2 design 6). A supergroup upgrade
  * lands here too: the chat_id changes, the old one stops resolving, and the
  * board re-adds via the link. Not migrated silently, because the new id
  * arrives on a field the bot may never see if it was down at the time.
@@ -1280,7 +1280,7 @@ async function refreshPin(bot: Bot, sql: Sql, chat: Chat, weekStart: string, tod
     const messageId = String(sent.message_id);
     // FR-19. The pin is the requirement, but the live number is the value, so
     // a refused pin keeps the message and flags itself instead of failing
-    // (design 2.3.2).
+    // (phase 2 design 3.2).
     const pinFailed = !(await tryPin(bot, chat.chatId, messageId));
     await recordPin(sql, chat.chatId, { messageId, text, pinFailed });
     return;
@@ -1362,7 +1362,7 @@ async function sendMondayPost(bot: Bot, sql: Sql, chat: Chat, weekStart: string)
 
 /**
  * FR-19 and FR-20. One 60-second loop, started in main.ts and stopped on
- * shutdown (design 2.4.1).
+ * shutdown (phase 2 design 4.1).
  *
  * Rejected: a third container or a host cron entry. NFR-1 and NFR-2 hold the
  * deployment to two containers and one process, and an external scheduler
@@ -1568,4 +1568,4 @@ git commit -m "Add the Phase 2 smoke checklist and update the docs"
 
 Phase 2's own "done when" is SPEC.md §10's: **the bot is in a test group, the pinned message updates without notifying, and a Monday post fires on schedule.** That is the checklist in Task 7 and it needs a real token and a real group. Nothing in this plan claims Phase 2 works until it has been run.
 
-The Phase 1 smoke run is still outstanding and is still the gate on real use of either phase (design 2.1.1). Both checklists can be run in the same session against the same bot.
+The Phase 1 smoke run is still outstanding and is still the gate on real use of either phase (phase 2 design 1.1). Both checklists can be run in the same session against the same bot.
