@@ -61,3 +61,22 @@ describe("callback encoding", () => {
       .not.toBe(encode({ kind: "yesterday", date: "2026-07-30" }));
   });
 });
+
+describe("bind (FR-18)", () => {
+  test("round-trips a guild slug", () => {
+    expect(decode(encode({ kind: "bind", slug: "prodeko" }))).toEqual({
+      kind: "bind",
+      slug: "prodeko",
+    });
+  });
+
+  test("stays inside Telegram's 64-byte callback_data limit", () => {
+    expect(encode({ kind: "bind", slug: "accounting" }).length).toBeLessThanOrEqual(64);
+  });
+
+  test("rejects a malformed slug", () => {
+    expect(decode("bind:NOT A SLUG")).toBeNull();
+    expect(decode("bind:")).toBeNull();
+    expect(decode("bind")).toBeNull();
+  });
+});

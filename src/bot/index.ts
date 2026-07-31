@@ -3,10 +3,19 @@ import type { Sql } from "postgres";
 import { installRegistration } from "./registration.ts";
 import { installCheckIn } from "./checkin.ts";
 import { installReports } from "./reports.ts";
+import { installGroup } from "./group.ts";
 import { COMMAND_DESCRIPTIONS } from "../strings.ts";
 
 export function createBot(sql: Sql, token: string): Bot {
   const bot = new Bot(token);
+
+  // Group handlers install FIRST. grammY stops the middleware chain at the
+  // first command handler that does not call next(), and registration's
+  // /start returns early on non-private chats without calling it, so a group
+  // /start would never reach group.ts if the order were reversed. group.ts's
+  // own /start calls next() for private chats, so registration still sees
+  // every private /start exactly as before.
+  installGroup(bot, sql);
 
   // Registration installs the callback_query:data handler that falls through
   // to the others, so its order matters.
@@ -49,8 +58,9 @@ export function createBot(sql: Sql, token: string): Bot {
 }
 
 /**
- * FR-17, private-chat half. Group scopes land in Phase 2 along with the group
- * chat itself.
+ * FR-17. Reporting commands appear only in private chats, standings appear in
+ * group chats. The requirement's own acceptance test is that the menu in a
+ * guild group offers /standings but not /log.
  */
 export async function installCommands(bot: Bot): Promise<void> {
   await bot.api.setMyCommands(
@@ -60,5 +70,9 @@ export async function installCommands(bot: Bot): Promise<void> {
       { command: "standings", description: COMMAND_DESCRIPTIONS.standings },
     ],
     { scope: { type: "all_private_chats" } },
+  );
+  await bot.api.setMyCommands(
+    [{ command: "standings", description: COMMAND_DESCRIPTIONS.standings }],
+    { scope: { type: "all_group_chats" } },
   );
 }

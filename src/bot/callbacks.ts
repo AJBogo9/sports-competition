@@ -18,7 +18,8 @@ export type Callback =
   | { kind: "move"; slug: string }
   | { kind: "stay" }
   | { kind: "me" }
-  | { kind: "standings" };
+  | { kind: "standings" }
+  | { kind: "bind"; slug: string };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLUG = /^[a-z][a-z0-9-]{0,30}$/;
@@ -35,6 +36,7 @@ export function encode(callback: Callback): string {
     case "stay":      return "stay";
     case "me":        return "me";
     case "standings": return "standings";
+    case "bind":      return `bind:${callback.slug}`;
   }
 }
 
@@ -53,6 +55,9 @@ export function decode(data: string): Callback | null {
 
     case "move":
       return first && SLUG.test(first) ? { kind: "move", slug: first } : null;
+
+    case "bind":
+      return first && SLUG.test(first) ? { kind: "bind", slug: first } : null;
 
     case "hour": {
       if (first === "off") return { kind: "hour", hour: null };
