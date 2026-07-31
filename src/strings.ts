@@ -169,3 +169,30 @@ export function chatBound(guildName: string): string {
     "by opening the guild's link again."
   );
 }
+
+/**
+ * FR-18. Phase 2 design 3.1: rebinding goes through the link only, and the
+ * picker binds an unbound chat and nothing else. Without this refusal, a
+ * picker left over from the primary path (Telegram delivers my_chat_member
+ * before /start <slug>, so the picker is briefly live in every chat that
+ * path is about to bind) sits there as a permanent re-point control: inline
+ * keyboards never expire and the process holds no state to retract one
+ * (NFR-5). Names the current guild so an admin who does want to change it
+ * still learns how.
+ */
+export function chatAlreadyBound(guildName: string): string {
+  return (
+    `This chat already follows <b>${escapeHtml(guildName)}</b>.\n\n` +
+    "An admin can change it by opening that guild's link again."
+  );
+}
+
+/**
+ * FR-18. A bind payload (a picker tap or a /start <slug> link) can outlive
+ * the guild it names: config.ts is the only source of slugs, and either can
+ * be used long after a guild is renamed or removed there. Told rather than
+ * left silent, particularly on the callback path, where the tap has already
+ * been acknowledged with nothing else to show for it.
+ */
+export const BIND_GUILD_GONE =
+  "That guild isn't available anymore. Nothing was saved. Send /start to pick again.";

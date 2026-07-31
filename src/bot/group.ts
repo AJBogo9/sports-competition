@@ -1,10 +1,16 @@
-import { InlineKeyboard, type Bot, type Context, type NextFunction } from "grammy";
+import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { Sql } from "postgres";
 import { GUILDS, guildBySlug } from "../config.ts";
 import { calendar } from "../db/calendar.ts";
 import { bindChat, findChat, unbindChat } from "../db/chats.ts";
 import { decode, encode } from "./callbacks.ts";
-import { CHOOSE_GUILD_GROUP, TOAST_ADMINS_ONLY, chatBound } from "../strings.ts";
+import {
+  BIND_GUILD_GONE,
+  CHOOSE_GUILD_GROUP,
+  TOAST_ADMINS_ONLY,
+  chatAlreadyBound,
+  chatBound,
+} from "../strings.ts";
 
 /** FR-18. The same three-per-row shape the private guild picker uses. */
 function bindKeyboard(): InlineKeyboard {
@@ -36,7 +42,17 @@ async function isChatAdmin(ctx: Context, userId: number): Promise<boolean> {
 
 async function bind(ctx: Context, sql: Sql, chatId: string, slug: string): Promise<void> {
   const guild = guildBySlug(slug);
-  if (!guild) return;
+  if (!guild) {
+    // A stale payload: config.ts is the only source of slugs, and a picker
+    // button or a /start <slug> link can be tapped long after a guild is
+    // renamed or removed there. registration.ts's equivalent guard can get
+    // away with an empty answerCallbackQuery because its keyboard stays up
+    // as the recovery path; this callback has already been answered by the
+    // time bind() runs, so silence here would leave the tapper with nothing
+    // at all.
+    await ctx.reply(BIND_GUILD_GONE);
+    return;
+  }
   // The binding week starts the Monday ledger at the current week, so a chat
   // bound on a Thursday is not immediately owed a "new week" post
   // (phase 2 design 2.4). Rebinding ignores it, see bindChat.
@@ -58,13 +74,24 @@ export function installGroup(bot: Bot, sql: Sql): void {
    * /start handler returns early on non-private chats without calling it, so
    * installing this one second would mean it never runs at all.
    */
-  bot.command("start", async (ctx, next: NextFunction) => {
+  bot.command("start", async (ctx, next) => {
     if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") return await next();
     const from = ctx.from;
     if (!from) return;
+    const chatId = String(ctx.chat.id);
 
     const slug = ctx.match.trim();
     if (!slug || !guildBySlug(slug)) {
+      // Phase 2 design 3.1: the picker binds an unbound chat and nothing
+      // else, so a bare or unrecognised /start cannot be used to spam a
+      // fresh re-point control into a chat that already has one. Same
+      // refusal as the callback path below.
+      const bound = await findChat(sql, chatId);
+      if (bound) {
+        const guild = guildBySlug(bound.guildSlug);
+        await ctx.reply(chatAlreadyBound(guild?.name ?? bound.guildSlug), { parse_mode: "HTML" });
+        return;
+      }
       await ctx.reply(CHOOSE_GUILD_GROUP, { reply_markup: bindKeyboard() });
       return;
     }
@@ -72,7 +99,7 @@ export function installGroup(bot: Bot, sql: Sql): void {
       await ctx.reply(TOAST_ADMINS_ONLY);
       return;
     }
-    await bind(ctx, sql, String(ctx.chat.id), slug);
+    await bind(ctx, sql, chatId, slug);
   });
 
   /**
@@ -108,12 +135,29 @@ export function installGroup(bot: Bot, sql: Sql): void {
     if (!ctx.chat || (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup")) {
       return await next();
     }
+    const chatId = String(ctx.chat.id);
+
+    // Phase 2 design 3.1: the picker binds an unbound chat and nothing
+    // else, rebinding goes through the link only. Checked before the admin
+    // RPC and regardless of who is tapping, because Telegram delivers
+    // my_chat_member before /start <slug>, so this picker is briefly live
+    // in every chat the primary path is about to bind, and with no session
+    // state to retract it (NFR-5) it would otherwise sit there as a
+    // permanent re-point control. This recheck is what keeps a stale tap
+    // inert.
+    const bound = await findChat(sql, chatId);
+    if (bound) {
+      await ctx.answerCallbackQuery();
+      const guild = guildBySlug(bound.guildSlug);
+      await ctx.reply(chatAlreadyBound(guild?.name ?? bound.guildSlug), { parse_mode: "HTML" });
+      return;
+    }
 
     if (!(await isChatAdmin(ctx, from.id))) {
       await ctx.answerCallbackQuery(TOAST_ADMINS_ONLY);
       return;
     }
     await ctx.answerCallbackQuery();
-    await bind(ctx, sql, String(ctx.chat.id), callback.slug);
+    await bind(ctx, sql, chatId, callback.slug);
   });
 }

@@ -16,6 +16,7 @@ const SAMPLES: Callback[] = [
   { kind: "stay" },
   { kind: "me" },
   { kind: "standings" },
+  { kind: "bind", slug: "prodeko" },
 ];
 
 describe("callback encoding", () => {
@@ -70,8 +71,11 @@ describe("bind (FR-18)", () => {
     });
   });
 
+  // Bytes, not UTF-16 units: the SAMPLES-driven test above already covers
+  // this correctly (Buffer.byteLength), this checks the same thing for a
+  // longer slug than the SAMPLES entry carries.
   test("stays inside Telegram's 64-byte callback_data limit", () => {
-    expect(encode({ kind: "bind", slug: "accounting" }).length).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(encode({ kind: "bind", slug: "accounting" }), "utf8")).toBeLessThanOrEqual(64);
   });
 
   test("rejects a malformed slug", () => {
