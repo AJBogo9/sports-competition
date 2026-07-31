@@ -48,8 +48,28 @@ export function encode(callback: Callback): string {
   }
 }
 
-/** Returns null for anything malformed. Callback data is user-controllable. */
+/**
+ * Returns null for anything malformed. Callback data is user-controllable.
+ *
+ * Phase 4 design 5.1. The parse below destructures only the first three
+ * colon-separated parts, so on its own it accepts trailing junk on seven of the
+ * kinds: "remind:20:30" parsed as a valid remind for 20:00. Rather than add a
+ * length check to each branch, decode() re-encodes what it parsed and demands
+ * the result be identical to the input. encode() is total over Callback and is
+ * already the inverse of this parse, so one assertion closes every kind at once
+ * and cannot drift out of step with a new one.
+ *
+ * Rejected: checking `data.split(":").length` per branch. It is the same test
+ * written nine times, and a tenth kind added later would silently not have it.
+ */
 export function decode(data: string): Callback | null {
+  const parsed = parse(data);
+  // A payload this bot would not itself have produced is not one it should act
+  // on. "hour:07" is the only realistic example, and encode() emits "hour:7".
+  return parsed && encode(parsed) === data ? parsed : null;
+}
+
+function parse(data: string): Callback | null {
   const [kind, first, second] = data.split(":");
 
   switch (kind) {
