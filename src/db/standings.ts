@@ -5,6 +5,22 @@ import type { WeekTotal } from "../domain/scoring.ts";
 const TIER_NAMES = Object.keys(TIER_MINUTES) as Tier[];
 const TIER_VALUES = TIER_NAMES.map((tier) => TIER_MINUTES[tier]);
 
+/**
+ * The config-backed tier lookup, injected into every query that converts tiers
+ * into minutes. It is a CTE built from config on each call, never a table: no
+ * total and nothing derived from TIER_MINUTES is ever stored (SPEC.md section
+ * 4.4), so changing a tier value in config.ts and restarting recomputes all
+ * history.
+ *
+ * One definition rather than four copies. Phase 3's "who has not logged today"
+ * would have made it six.
+ */
+function tierMinutes(sql: Sql) {
+  return sql`
+    SELECT * FROM unnest(${sql.array(TIER_NAMES)}::text[], ${sql.array(TIER_VALUES)}::int[])
+  `;
+}
+
 export interface GuildStanding {
   slug: string;
   name: string;
@@ -45,9 +61,7 @@ export async function standings(
   to: string,
 ): Promise<GuildStanding[]> {
   return await sql<GuildStanding[]>`
-    WITH tier_minutes(tier, minutes) AS (
-      SELECT * FROM unnest(${sql.array(TIER_NAMES)}::text[], ${sql.array(TIER_VALUES)}::int[])
-    )
+    WITH tier_minutes(tier, minutes) AS (${tierMinutes(sql)})
     SELECT g.slug,
            g.name,
            COALESCE(SUM(t.minutes), 0)::int AS minutes,
@@ -84,9 +98,7 @@ export async function neighbours(
   const rows = await sql<
     { telegram_id: string; first_name: string; minutes: number; rank: number }[]
   >`
-    WITH tier_minutes(tier, minutes) AS (
-      SELECT * FROM unnest(${sql.array(TIER_NAMES)}::text[], ${sql.array(TIER_VALUES)}::int[])
-    ), totals AS (
+    WITH tier_minutes(tier, minutes) AS (${tierMinutes(sql)}), totals AS (
       SELECT u.telegram_id,
              u.first_name,
              COALESCE(SUM(t.minutes), 0)::int AS minutes
@@ -122,9 +134,7 @@ export async function neighbours(
  */
 export async function weeklyTotals(sql: Sql, telegramId: number): Promise<WeekTotal[]> {
   const rows = await sql<{ week_start: string; minutes: number }[]>`
-    WITH tier_minutes(tier, minutes) AS (
-      SELECT * FROM unnest(${sql.array(TIER_NAMES)}::text[], ${sql.array(TIER_VALUES)}::int[])
-    )
+    WITH tier_minutes(tier, minutes) AS (${tierMinutes(sql)})
     SELECT date_trunc('week', d.date)::date::text AS week_start,
            COALESCE(SUM(t.minutes), 0)::int       AS minutes
     FROM days d
@@ -134,4 +144,41 @@ export async function weeklyTotals(sql: Sql, telegramId: number): Promise<WeekTo
     ORDER BY 1
   `;
   return rows.map((row) => ({ weekStart: row.week_start, minutes: row.minutes }));
+}
+
+/**
+ * FR-20. The share of a guild's roster that logged at least once in the range,
+ * as a fraction between 0 and 1. The renderer turns it into a percentage.
+ *
+ * A rest day counts (phase 2 design 4.3): FR-8 makes rest an explicit record rather
+ * than an absence, and this number measures engagement rather than minutes.
+ * That is why it joins days without joining tier_minutes at all.
+ *
+ * The denominator is the configured member_count, the same roster every other
+ * per-member number in the competition divides by, so the two cannot tell
+ * different stories about the same guild.
+ *
+ * ::numeric before the division and ::float8 after, because Postgres integer
+ * division would truncate 2 / 650 to 0.
+ */
+export async function participation(
+  sql: Sql,
+  guildSlug: string,
+  from: string,
+  to: string,
+): Promise<number> {
+  const [row] = await sql<{ share: number }[]>`
+    SELECT (COUNT(DISTINCT d.telegram_id)::numeric / g.member_count)::float8 AS share
+    FROM guilds g
+    LEFT JOIN users u ON u.guild_slug = g.slug AND NOT u.blocked
+    LEFT JOIN days d ON d.telegram_id = u.telegram_id
+                    AND d.date BETWEEN ${from}::date AND ${to}::date
+    WHERE g.slug = ${guildSlug}
+    GROUP BY g.slug, g.member_count
+  `;
+  // guilds is synced from config on every boot, so a miss means the caller
+  // passed a slug that is not in config at all. Surfacing it is better than
+  // returning 0, which would render as a plausible but false "0% logged".
+  if (!row) throw new Error(`guild "${guildSlug}" not found`);
+  return row.share;
 }

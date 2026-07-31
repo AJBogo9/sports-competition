@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { freshDatabase } from "../helpers/db.ts";
 import { syncGuilds, createUser } from "../../src/db/users.ts";
 import { logDay } from "../../src/db/days.ts";
-import { neighbours, standings, weeklyTotals } from "../../src/db/standings.ts";
+import { neighbours, participation, standings, weeklyTotals } from "../../src/db/standings.ts";
 
 const sql = await freshDatabase("standings");
 afterAll(async () => { await sql.end(); });
@@ -195,5 +195,50 @@ describe("weeklyTotals", () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
     await logDay(sql, 1, "2026-07-28", "rest");
     expect(await weeklyTotals(sql, 1)).toEqual([{ weekStart: "2026-07-27", minutes: 0 }]);
+  });
+});
+
+describe("participation (FR-20)", () => {
+  // Phase 2 design 4.3. The denominator is the configured roster, the same one
+  // every other per-member number uses. Prodeko has 650 members in config.
+  test("divides logging members by the full roster", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Bob" });
+    await logDay(sql, 1, "2026-07-28", "medium");
+    await logDay(sql, 2, "2026-07-29", "long");
+
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
+  });
+
+  // Phase 2 design 4.3. FR-8 makes rest an explicit record rather than an
+  // absence, and this number measures engagement, not minutes.
+  test("counts a rest day as participation", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await logDay(sql, 1, "2026-07-28", "rest");
+
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(1 / 650, 10);
+  });
+
+  test("counts a member who logged twice only once", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await logDay(sql, 1, "2026-07-28", "short");
+    await logDay(sql, 1, "2026-07-29", "long");
+
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(1 / 650, 10);
+  });
+
+  test("excludes a registered member who never logged", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(0);
+  });
+
+  test("excludes days outside the range", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await logDay(sql, 1, "2026-08-05", "long");
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(0);
+  });
+
+  test("returns zero for a guild with nobody registered", async () => {
+    expect(await participation(sql, "athene", WEEK_FROM, WEEK_TO)).toBe(0);
   });
 });
