@@ -392,7 +392,7 @@ CREATE TABLE users (
   username        TEXT,
   reminder_hour   SMALLINT,           -- NULL means reminders off
   ignored_streak  SMALLINT NOT NULL DEFAULT 0,
-  blocked         BOOLEAN NOT NULL DEFAULT FALSE,
+  blocked         BOOLEAN NOT NULL DEFAULT FALSE,  -- gates messaging, never scoring
   joined_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -422,12 +422,31 @@ SELECT g.name,
        COALESCE(SUM(t.minutes), 0)                  AS minutes,
        COALESCE(SUM(t.minutes), 0) / g.member_count AS per_member
 FROM guilds g
-LEFT JOIN users u ON u.guild_slug = g.slug AND NOT u.blocked
+LEFT JOIN users u ON u.guild_slug = g.slug
 LEFT JOIN days d  ON d.telegram_id = u.telegram_id AND d.date BETWEEN :from AND :to
 LEFT JOIN tier_minutes t ON t.tier = d.tier     -- config-backed VALUES list
 GROUP BY g.slug, g.name, g.member_count
 ORDER BY per_member DESC;
 ```
+
+**Two corrections to the query above, both found in implementation.** It is illustrative, and it was
+wrong in two ways that are worth stating rather than quietly fixing in code:
+
+1. **The division truncates.** `SUM(t.minutes) / g.member_count` on two integers makes `142 / 650`
+   into `0` in Postgres, so every guild ties at zero. The implementation casts `::numeric` before
+   dividing and `::float8` after. The bug is left visible in the query above on purpose: the
+   docstring on `standings()` and a test in `tests/db/standings.test.ts` both cite it by name as
+   the worked example of why the cast exists, and that test asserts the corrected behaviour.
+2. **`AND NOT u.blocked` has been removed**, deliberately. Blocking the bot is a decision about
+   being messaged, and §4.3 scores a guild across its entire roster including members who never log
+   at all, so it cannot also be a decision about being counted. The clause is worse than merely
+   wrong: because no total is ever stored (§4.4), every read recomputes from `days`, so excluding a
+   blocked user does not stop counting them going forward, it retroactively erases every minute
+   they ever logged. The first user to block the bot would make their guild's published season
+   score visibly drop. `blocked` gates outbound messaging only. See FR-23.
+
+Also add a unique tiebreaker to the `ORDER BY` (`g.slug`): guild names are not unique in this
+schema, and without one Postgres may return different orderings across calls.
 
 ### Volume
 

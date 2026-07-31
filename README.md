@@ -3,8 +3,11 @@
 A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
 University student guilds. One tap per day, guilds ranked on minutes per member.
 
-**Status:** specified, not started. English, and reminders are a per-user choice. Competition dates
-are the only open question ([SPEC.md](SPEC.md) §9), and they block only the config file.
+**Status:** Phases 1 and 2 are built: registration, `/log`, `/me`, `/standings`, the group chat
+(binding, pinned standings, the Monday post), and the Docker deployment below. English, and
+reminders are a per-user choice. Phase 3 (reminders actually being sent) and Phase 4 (optional
+tags, the nightly backup) are not built ([SPEC.md](SPEC.md) §10). Competition dates are still a
+placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9); see Deploy below.
 
 ## Start here
 
@@ -13,6 +16,48 @@ are the only open question ([SPEC.md](SPEC.md) §9), and they block only the con
 | **[SPEC.md](SPEC.md)** | The requirements. Numbered, testable, with a build order. This is the source of truth |
 | [docs/evidence.md](docs/evidence.md) | Primary citations for every design decision, with exact figures and the claims that did not survive checking |
 | [prototype/bot-flows.html](prototype/bot-flows.html) | Clickable mockup of every screen. Open it in a browser |
+
+## Deploy
+
+1. `cp .env.example .env`, then fill it in: `BOT_TOKEN` from [@BotFather](https://t.me/BotFather)
+   (`/newbot`, then copy the token it gives you), and a `POSTGRES_PASSWORD` of your choosing.
+   `DATABASE_URL` already matches `docker-compose.yml`; leave it as is. `.env` is gitignored and
+   never committed.
+2. `docker compose up -d --build` starts the bot and its database. Logs: `docker compose logs -f
+   bot`.
+3. Before pointing this at a real competition, replace the placeholder dates in `src/config.ts`
+   (`COMPETITION_START` / `COMPETITION_END`, see the comment there) and re-verify every guild's
+   `memberCount`: it is the denominator of every ranking, so a stale count silently distorts every
+   comparison in the competition. **Any change under `src/` needs `docker compose up -d --build`,
+   not `docker compose restart bot`.** The image copies `src` in at build time and nothing
+   bind-mounts it, so a restart quietly keeps running the previous configuration.
+4. For the eventual move to the guild's own hosting: `scripts/dump.sh` writes a timestamped dump to
+   `./backups`, and `scripts/restore.sh <dump.sql>` replaces the contents of a running database with
+   one. Copy the latest dump and `.env` over, then restore on the new host.
+
+A guild's board adds the bot to their own group chat with `https://t.me/<bot>?startgroup=<slug>`
+(their guild's slug from `src/config.ts`), which binds the chat and starts a pinned standings
+message that keeps itself updated. Pinning needs the bot to be a chat admin with permission to
+pin; without that permission the same message still appears and still updates, just unpinned,
+with a line asking for admin rights until it gets them.
+
+### Stopping the group chat features without stopping the bot
+
+There is no dedicated switch for this yet. Two levers exist today, and neither is free:
+
+- `docker compose stop bot` stops the ticker along with everything else: registration, `/log`,
+  `/me` and `/standings` all go down too, not just the pinned standings and the Monday post.
+- `DELETE FROM chats` (or a per-row delete) unbinds every affected group chat immediately, so the
+  ticker stops touching them on its next tick. **This is not a clean off switch.** The same row
+  also carries `pinned_message_id` and `last_monday_week`, so deleting it destroys both along with
+  the binding. If a board later rebinds the chat, the fresh row seeds `last_monday_week` to the
+  week of the rebind (see `bindChat` in `src/db/chats.ts`), which can suppress that week's Monday
+  post if it had not actually fired yet, and the message that was pinned before the delete is
+  orphaned: still pinned in the chat, but no longer tracked, so the bot can neither update nor
+  unpin it.
+
+**Never run the `test` compose profile (`db-test`) on the production host.** It binds a port on the
+host and uses a throwaway password; it exists only for `bun test` against a disposable database.
 
 ## The design in six lines
 

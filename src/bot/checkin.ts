@@ -1,0 +1,233 @@
+import { InlineKeyboard, type Bot, type Context } from "grammy";
+import type { Sql } from "postgres";
+import { TIER_ORDER, WEEKLY_TARGET_MINUTES, type Tier } from "../config.ts";
+import { calendar, weekStartOf } from "../db/calendar.ts";
+import { logDay, undoDay, weekMinutes } from "../db/days.ts";
+import { findUser } from "../db/users.ts";
+import { isInWindow } from "../domain/scoring.ts";
+import { confirmation, progressBlock } from "./render.ts";
+import { decode, encode } from "./callbacks.ts";
+import {
+  BUTTON_LOG_AGAIN,
+  BUTTON_ME,
+  BUTTON_STANDINGS,
+  BUTTON_UNDO,
+  BUTTON_YESTERDAY,
+  CHECK_IN_PROMPT,
+  CHECK_IN_PROMPT_YESTERDAY,
+  NOT_REGISTERED,
+  OUTSIDE_WINDOW,
+  STALE_CHECK_IN,
+  TIER_LABELS,
+  TOAST_LOGGED,
+  TOAST_PUT_BACK,
+  TOAST_REMOVED,
+  UNDO_DONE,
+  UNDO_RESTORED,
+} from "../strings.ts";
+
+/**
+ * FR-5. One tier per row, so a tap is unambiguous on a phone, and no
+ * confirmation step: the tap itself is the commit.
+ *
+ * FR-10. Backdating is one extra row, so today stays one tap and yesterday
+ * costs two.
+ */
+function checkInKeyboard(date: string, yesterday: string | null): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  for (const tier of TIER_ORDER) {
+    keyboard.text(TIER_LABELS[tier], encode({ kind: "log", date, tier })).row();
+  }
+  if (yesterday) {
+    keyboard.text(BUTTON_YESTERDAY, encode({ kind: "yesterday", date: yesterday }));
+  }
+  return keyboard;
+}
+
+/** The undo button carries the tier this log displaced, so FR-9 can put it
+ *  back rather than merely deleting the day. See design 4.5. */
+function afterLogKeyboard(date: string, displaced: Tier | null): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(BUTTON_UNDO, encode({ kind: "undo", date, restore: displaced }))
+    .text(BUTTON_ME, encode({ kind: "me" }))
+    .text(BUTTON_STANDINGS, encode({ kind: "standings" }));
+}
+
+/** FR-6. The same check-in message, on demand. Also reused after registration. */
+export async function sendCheckIn(ctx: Context, sql: Sql, telegramId: number): Promise<void> {
+  const user = await findUser(sql, telegramId);
+  if (!user) {
+    await ctx.reply(NOT_REGISTERED);
+    return;
+  }
+  const { today, yesterday } = await calendar(sql);
+  // FR-10. Only offer the backdate button when yesterday is itself loggable.
+  // On the competition's first day, yesterday falls outside the window, and
+  // offering the button anyway would cost the user two taps (Yesterday, then
+  // any tier) to reach the same OUTSIDE_WINDOW refusal a single tap would
+  // have given them.
+  const backdateTo = isInWindow(yesterday) ? yesterday : null;
+  await ctx.reply(CHECK_IN_PROMPT, {
+    parse_mode: "HTML",
+    reply_markup: checkInKeyboard(today, backdateTo),
+  });
+}
+
+export function installCheckIn(bot: Bot, sql: Sql): void {
+  bot.command("log", async (ctx) => {
+    if (ctx.chat.type !== "private" || !ctx.from) return;
+    await sendCheckIn(ctx, sql, ctx.from.id);
+  });
+
+  bot.on("callback_query:data", async (ctx, next) => {
+    const callback = decode(ctx.callbackQuery.data);
+    const from = ctx.from;
+    if (!callback || !from) return await next();
+
+    // Payload dates are never trusted for rendering either: a check-in
+    // message persists and its buttons stay live long after the day it was
+    // sent for, so callback.date can be stale by the time it's tapped. Both
+    // branches below recompute against the live calendar rather than the
+    // payload.
+    if (callback.kind === "yesterday") {
+      await ctx.answerCallbackQuery();
+      // Ignore the payload date entirely: this button only ever means "the
+      // day before today", so bind to the live yesterday regardless of what
+      // date the message happened to carry when it was rendered.
+      const { yesterday } = await calendar(sql);
+      await ctx.editMessageText(CHECK_IN_PROMPT_YESTERDAY, {
+        parse_mode: "HTML",
+        reply_markup: checkInKeyboard(yesterday, null),
+      });
+      return;
+    }
+
+    // Offered after an undo, to log the same day again. The prompt must
+    // match the date being re-offered: after a backdated undo, callback.date
+    // is yesterday, and showing "Moved today?" while the buttons commit to
+    // yesterday would let the user believe a yesterday write was for today.
+    //
+    // The payload date is kept only if it still equals the live today or
+    // yesterday; otherwise it falls back to today. This preserves undoing a
+    // backdated entry offering to re-log that same day, while a message gone
+    // stale beyond that falls back to something sensible rather than
+    // re-offering an arbitrary past date.
+    if (callback.kind === "checkin") {
+      await ctx.answerCallbackQuery();
+      const { today, yesterday } = await calendar(sql);
+      const date = callback.date === today || callback.date === yesterday ? callback.date : today;
+      const prompt = date === today ? CHECK_IN_PROMPT : CHECK_IN_PROMPT_YESTERDAY;
+      await ctx.editMessageText(prompt, {
+        parse_mode: "HTML",
+        reply_markup: checkInKeyboard(date, null),
+      });
+      return;
+    }
+
+    if (callback.kind === "log") {
+      const user = await findUser(sql, from.id);
+      if (!user) {
+        await ctx.answerCallbackQuery(NOT_REGISTERED);
+        return;
+      }
+
+      // FR-26. Nothing outside the competition window is ever written, and
+      // neither is a day that has not happened yet: callback data is not
+      // guaranteed well-formed, even though the check-in UI only ever offers
+      // today and yesterday.
+      //
+      // The future-date half of this guard is not merely defensive: weekMinutes
+      // sums the full Monday-to-Sunday week, while standings() and neighbours()
+      // sum only up to today, and those two only ever agree because no
+      // future-dated row can exist. Removing this guard would let a future
+      // write slip in and silently disagree with /me's own "Around you" row.
+      //
+      // Payload dates are also never trusted for staleness: a /log message
+      // sent on day N carries "today" and "yesterday" as they were on day N,
+      // but the message and its buttons stay live indefinitely. A tap on
+      // day N+3 must not be allowed to write three days back just because
+      // the payload still names that date, so today and yesterday are
+      // recomputed against the live calendar and anything else is refused.
+      const { today, yesterday } = await calendar(sql);
+      if (
+        !isInWindow(callback.date) ||
+        callback.date > today ||
+        (callback.date !== today && callback.date !== yesterday)
+      ) {
+        await ctx.answerCallbackQuery();
+        // Two distinct refusals share this guard, so they must not share a
+        // message: a date genuinely outside the competition, and a date
+        // inside it that is only stale. Telling someone their date is
+        // outside the competition when it is not sends them looking for a
+        // problem that does not exist.
+        await ctx.editMessageText(isInWindow(callback.date) ? STALE_CHECK_IN : OUTSIDE_WINDOW);
+        return;
+      }
+
+      const { displaced } = await logDay(sql, from.id, callback.date, callback.tier);
+      await ctx.answerCallbackQuery(TOAST_LOGGED);
+
+      const weekStart = await weekStartOf(sql, callback.date);
+      const minutes = await weekMinutes(sql, from.id, weekStart);
+      await ctx.editMessageText(
+        confirmation(callback.tier, minutes, WEEKLY_TARGET_MINUTES),
+        {
+          parse_mode: "HTML",
+          reply_markup: afterLogKeyboard(callback.date, displaced),
+        },
+      );
+      return;
+    }
+
+    if (callback.kind === "undo") {
+      const user = await findUser(sql, from.id);
+      if (!user) {
+        await ctx.answerCallbackQuery(NOT_REGISTERED);
+        return;
+      }
+
+      // FR-26. The same guard as the log path above, including the
+      // future-date/weekMinutes coupling and the staleness check: callback
+      // data is not guaranteed well-formed, and this must not write outside
+      // the competition window, for a day that has not happened yet, or for
+      // a stale date a persisted message still carries, even though the
+      // official client never offers an undo button for a date it wouldn't
+      // have let you log.
+      const { today, yesterday } = await calendar(sql);
+      if (
+        !isInWindow(callback.date) ||
+        callback.date > today ||
+        (callback.date !== today && callback.date !== yesterday)
+      ) {
+        await ctx.answerCallbackQuery();
+        // Same split as the log path above.
+        await ctx.editMessageText(isInWindow(callback.date) ? STALE_CHECK_IN : OUTSIDE_WINDOW);
+        return;
+      }
+
+      // FR-9. Restores the displaced tier when the log overwrote one, so the
+      // exact prior weekly total comes back rather than merely vanishing.
+      await undoDay(sql, from.id, callback.date, callback.restore);
+      const restored = callback.restore !== null;
+      await ctx.answerCallbackQuery(restored ? TOAST_PUT_BACK : TOAST_REMOVED);
+
+      const weekStart = await weekStartOf(sql, callback.date);
+      const minutes = await weekMinutes(sql, from.id, weekStart);
+      // A restore leaves the previous tier's minutes still counted below, so
+      // saying "Removed." there (and in the toast above) would contradict the
+      // progress block.
+      const message = restored ? UNDO_RESTORED : UNDO_DONE;
+      await ctx.editMessageText(
+        `${message}\n\n${progressBlock(minutes, WEEKLY_TARGET_MINUTES)}`,
+        {
+          parse_mode: "HTML",
+          reply_markup: new InlineKeyboard()
+            .text(BUTTON_LOG_AGAIN, encode({ kind: "checkin", date: callback.date })),
+        },
+      );
+      return;
+    }
+
+    return await next();
+  });
+}

@@ -1,0 +1,18 @@
+{
+  "name": "sports-competition",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "test": "bun test",
+    "test:db": "docker compose --profile test up -d db-test && bun test"
+  },
+  "dependencies": {
+    "grammy": "^1.45.1",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^7.0.2"
+  }
+}
