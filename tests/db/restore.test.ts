@@ -228,3 +228,40 @@ describe("restore fidelity, directory format (NFR-3, SPEC.md section 10)", () =>
     }
   });
 });
+
+describe("restore fidelity, plain SQL format (scripts/dump.sh)", () => {
+  // The format scripts/dump.sh and scripts/restore.sh use for a host move.
+  // Phase 4 design 4.3: this covers the format, not the scripts themselves.
+  // Their argument handling and empty-file guards are not what a competition
+  // depends on; a faithful round trip is.
+  test("a plain SQL dump restores into an empty database and reproduces every number", async () => {
+    const dump = await inContainer([
+      "pg_dump", "-U", "bot", "-d", SOURCE_DB, "--clean", "--if-exists",
+    ]);
+    expect(dump).toContain("COPY public.days");
+
+    await createDatabase(TARGET_DB);
+
+    // psql reads the dump on stdin, which `docker compose exec -T` forwards.
+    const proc = Bun.spawn(
+      [
+        "docker", "compose", "exec", "-T", "db-test",
+        "psql", "-U", "bot", "-d", TARGET_DB, "-q",
+        "-v", "ON_ERROR_STOP=1", "--single-transaction",
+      ],
+      { cwd: REPO_ROOT, stdin: new TextEncoder().encode(dump), stdout: "pipe", stderr: "pipe" },
+    );
+    const [stderr, code] = await Promise.all([
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    expect(code, `psql restore failed: ${stderr}`).toBe(0);
+
+    const target = postgres(urlFor(TARGET_DB), { max: 2, onnotice: () => {} });
+    try {
+      expect(await captureSurface(target)).toEqual(original);
+    } finally {
+      await target.end();
+    }
+  });
+});
