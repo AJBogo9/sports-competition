@@ -355,10 +355,15 @@ today, paused, outside the window, and the ordering and limit.
 
 ### 7.2 An existing invariant goes live
 
-Three tests in `tests/db/standings.test.ts` guard against a `NOT u.blocked` clause and currently
-pass trivially, because nothing writes `blocked`. FR-23 makes the column writable for the first
-time. A test is added asserting that a user with `blocked = TRUE` still contributes minutes to
-their guild's weekly and season totals, so the guard has a case that would actually fail.
+Three tests in `tests/db/standings.test.ts` guard against a `NOT u.blocked` clause. They set
+`blocked = TRUE` directly, so they already have a case that fails if the clause is restored, and
+**no new test is needed**: an earlier draft of this section said otherwise and was wrong.
+
+What this phase owes is the comments. The header above those tests says "nothing writes it until
+FR-23 lands in Phase 3", and the docstring on `standings()` says "nothing sets `blocked` until
+FR-23 lands in Phase 3". Both become false in this phase. A stale comment saying a guard cannot
+fire is worse than no comment, because it invites the next reader to conclude the guard is
+theoretical and delete it.
 
 ### 7.3 The gap this phase cannot smoke test
 
@@ -410,6 +415,6 @@ lines above the hand counts in the earlier ledgers.
 | A reminder defect gets the bot blocked, which is permanent per user (SPEC.md §3.2) | 4.1's bounded grace window, 3.3's refusal to resume without consent, 3.4's no-instant-fire rule, and a visible `/remind` off switch |
 | The five-ignore rule cannot be smoke tested and ships unverified | 3.2 is pure and unit tested end to end (7.1). The wiring is verified by the 7.3 operator step |
 | Reminders keep arriving after the competition ends | 4.5's placement rule, inside the `inWindow` gate. Called out because the ticker's existing gate has two branches and only one is correct here |
-| `NOT u.blocked` reappears in a scoring query, now that the column is finally written | 7.2 adds a test with a real failing case, replacing three that passed trivially |
+| `NOT u.blocked` reappears in a scoring query, now that the column is finally written | Three tests already guard it with a real failing case (7.2). This phase refreshes the comments that call the column unwritten, so nobody reads the guard as theoretical |
 | A popular hour bursts past Telegram's rate limit | 4.2's per-tick cap |
 | Phases 1 and 2 remain unsmoked while a third phase lands on top | 1.1. Unchanged and now stated for the third time: the smoke runs gate real use, not code |
