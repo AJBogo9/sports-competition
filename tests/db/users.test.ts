@@ -217,4 +217,92 @@ describe("users", () => {
     await createUser(sql, { telegramId: 4242, guildSlug: "prodeko", firstName: "Andreas" });
     await expect(setReminderHour(sql, 4242, 25)).rejects.toThrow(/violates check constraint/);
   });
+
+  // Phase 3 design 2. reminder_asked is what finally separates "never asked"
+  // from "asked and declined", which reminder_hour = NULL conflated in Phase 1.
+  test("a new user has not been asked the reminder question yet", async () => {
+    const user = await createUser(sql, {
+      telegramId: 4242, guildSlug: "prodeko", firstName: "Andreas",
+    });
+    expect(user.reminderAsked).toBe(false);
+  });
+
+  test("answering the reminder question marks the user as asked, either way", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Yes" });
+    await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "No" });
+
+    await setReminderHour(sql, 1, 20);
+    await setReminderHour(sql, 2, null);
+
+    expect((await findUser(sql, 1))?.reminderAsked).toBe(true);
+    expect((await findUser(sql, 2))?.reminderAsked).toBe(true);
+  });
+
+  // Phase 3 design 3.4. Setting an hour is the explicit consent that lifts a
+  // pause. Without the reset, a user paused by FR-22 who used /remind to ask
+  // for reminders back would stay excluded by the candidate query and would
+  // silently receive nothing, having just been told they were back on.
+  test("setting an hour clears an ignore count, so /remind lifts a pause", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Paused" });
+    await sql`UPDATE users SET ignored_streak = 6 WHERE telegram_id = 1`;
+
+    await setReminderHour(sql, 1, 20);
+
+    const [row] = await sql<{ ignored_streak: number }[]>`
+      SELECT ignored_streak FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.ignored_streak).toBe(0);
+  });
+
+  test("turning reminders off also clears the count, so turning them back on starts fresh", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Off" });
+    await sql`UPDATE users SET ignored_streak = 3 WHERE telegram_id = 1`;
+
+    await setReminderHour(sql, 1, null);
+
+    const [row] = await sql<{ ignored_streak: number }[]>`
+      SELECT ignored_streak FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.ignored_streak).toBe(0);
+  });
+
+  // Phase 3 design 3.4. Picking 20:00 at 21:00 sits inside that hour's grace
+  // window, so without this the user would receive a check-in message seconds
+  // after asking to be reminded at 20:00. The stamp defers them to tomorrow.
+  // 2026-07-28T18:30:00Z is 21:30 in Helsinki, which is UTC+3 in July.
+  test("choosing an hour that has already passed does not fire a reminder today", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Late" });
+
+    await setReminderHour(sql, 1, 20, "2026-07-28T18:30:00Z");
+
+    const [row] = await sql<{ last_reminded_at: Date | null }[]>`
+      SELECT last_reminded_at FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.last_reminded_at).not.toBeNull();
+  });
+
+  // The other side of the same rule: an hour still to come today must NOT be
+  // stamped, or the user's first reminder would be silently pushed to tomorrow.
+  // 2026-07-28T05:00:00Z is 08:00 in Helsinki.
+  test("choosing an hour still to come today leaves it free to fire", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Early" });
+
+    await setReminderHour(sql, 1, 20, "2026-07-28T05:00:00Z");
+
+    const [row] = await sql<{ last_reminded_at: Date | null }[]>`
+      SELECT last_reminded_at FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.last_reminded_at).toBeNull();
+  });
+
+  test("turning reminders off never stamps a send that did not happen", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Off" });
+
+    await setReminderHour(sql, 1, null, "2026-07-28T18:30:00Z");
+
+    const [row] = await sql<{ last_reminded_at: Date | null }[]>`
+      SELECT last_reminded_at FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.last_reminded_at).toBeNull();
+  });
 });
