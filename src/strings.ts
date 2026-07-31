@@ -126,6 +126,20 @@ export function remindStatusOn(hour: number): string {
 export const REMIND_STATUS_OFF =
   "Reminders are off.\n\nPick an hour and I'll ask on days you haven't logged.";
 
+/**
+ * FR-22 and phase 3 design 3.3. /remind's third status: paused by the
+ * five-ignore auto-stop rather than turned off. reminderHour survives a pause
+ * untouched, so it is named here, and picking any hour below (that one or a
+ * new one) is what lifts the pause, exactly as it would from the follow-up.
+ */
+export function remindStatusPaused(hour: number): string {
+  return (
+    "Reminders are stopped: five days went unanswered.\n\n" +
+    `They'd resume at <b>${String(hour).padStart(2, "0")}:00</b>. Pick that hour again, ` +
+    "or a different one, and they start right away."
+  );
+}
+
 export function remindSet(hour: number): string {
   return (
     `Set for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +

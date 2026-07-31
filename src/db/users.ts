@@ -10,6 +10,10 @@ export interface UserRow {
   /** FR-4. Whether the reminder question has been put to them at all, which
    *  reminderHour = null cannot express on its own (phase 3 design 2.1). */
   reminderAsked: boolean;
+  /** users.ignored_streak. FR-22's pause is stored here, not in reminderHour,
+   *  so a caller that wants to know whether a user is paused (rather than off)
+   *  needs this alongside reminderHour (phase 3 design 3.3). */
+  ignoredStreak: number;
 }
 
 interface UserRecord {
@@ -19,6 +23,7 @@ interface UserRecord {
   username: string | null;
   reminder_hour: number | null;
   reminder_asked: boolean;
+  ignored_streak: number;
 }
 
 /** BIGINT arrives as a string from the driver. Telegram IDs are well inside
@@ -31,11 +36,12 @@ function toUser(record: UserRecord): UserRow {
     username: record.username,
     reminderHour: record.reminder_hour,
     reminderAsked: record.reminder_asked,
+    ignoredStreak: record.ignored_streak,
   };
 }
 
 const USER_COLUMNS =
-  "telegram_id::text, guild_slug, first_name, username, reminder_hour, reminder_asked";
+  "telegram_id::text, guild_slug, first_name, username, reminder_hour, reminder_asked, ignored_streak";
 
 /**
  * Mirrors the config roster into the database at startup (FR-25). Names and

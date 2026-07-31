@@ -1,5 +1,6 @@
 import { GrammyError, InlineKeyboard, type Bot } from "grammy";
 import type { Sql } from "postgres";
+import { FOLLOWUP_AFTER_IGNORES } from "../config.ts";
 import { reminderAction } from "../domain/reminders.ts";
 import {
   dueReminders,
@@ -22,6 +23,7 @@ import {
   TOAST_REMINDERS_OFF,
   remindSet,
   remindStatusOn,
+  remindStatusPaused,
   remindersKept,
   toastReminderSet,
 } from "../strings.ts";
@@ -78,10 +80,17 @@ export function installReminders(bot: Bot, sql: Sql): void {
       await ctx.reply(NOT_REGISTERED);
       return;
     }
-    await ctx.reply(
-      user.reminderHour === null ? REMIND_STATUS_OFF : remindStatusOn(user.reminderHour),
-      { parse_mode: "HTML", reply_markup: remindKeyboard() },
-    );
+    // FR-22 pause and FR-4 off both leave reminderHour untouched or null
+    // respectively, but they are different states: findUser did not use to
+    // expose ignoredStreak at all, so this handler could not tell a paused
+    // user apart from one whose hour was simply on, and told them reminders
+    // were live when dueReminders was excluding them (phase 3 design 3.3).
+    const status = user.reminderHour === null
+      ? REMIND_STATUS_OFF
+      : user.ignoredStreak > FOLLOWUP_AFTER_IGNORES
+      ? remindStatusPaused(user.reminderHour)
+      : remindStatusOn(user.reminderHour);
+    await ctx.reply(status, { parse_mode: "HTML", reply_markup: remindKeyboard() });
   });
 
   bot.on("callback_query:data", async (ctx, next) => {
