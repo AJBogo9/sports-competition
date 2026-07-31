@@ -308,7 +308,7 @@ describe("mondayPost (FR-20)", () => {
     expect(post).toContain("22.8");
   });
 
-  // Phase 2 design 4.3. The percentage is about the reader's guild, not the winner's.
+  // Phase 2 design 3.3. The percentage is about the reader's guild, not the winner's.
   test("states the reader's guild participation as a whole percentage", () => {
     expect(mondayPost(input)).toContain("31%");
   });
@@ -321,12 +321,40 @@ describe("mondayPost (FR-20)", () => {
   });
 
   // SPEC.md section 11 rates a guild disengaging from a hopeless position as
-  // the top risk, and this post is the fresh start that answers it. A guild
-  // that is last must still read as having an opening.
-  test("reads the same for a guild that finished last", () => {
-    const post = mondayPost({ ...input, guildName: "Athene", guildRank: 9, guildPerMember: 4.2 });
-    expect(post).toContain("9th");
-    expect(post).toContain("Nothing carries over");
+  // the top risk, and this post is the fresh start that answers it. Checking
+  // only for "9th" and "Nothing carries over" does not prove the copy is
+  // unconditional: a regression that appended rank-conditional text, for
+  // example a sympathetic aside shown only when guildRank > 6, would leave
+  // both substrings intact and a test that only checked those would still
+  // pass. Assert the stronger claim directly instead: render the post for a
+  // guild placed 1st and again for a guild placed 9th, with the same winner
+  // and the same participation, strip every interpolated value from both
+  // with explicit (not regex) replacements, and require the two remaining
+  // skeletons to be byte-identical.
+  test("reads the same for a guild that finished last as for one that won", () => {
+    const first = mondayPost({ ...input, guildName: "Prodeko", guildRank: 1, guildPerMember: 22.8 });
+    const last = mondayPost({ ...input, guildName: "Athene", guildRank: 9, guildPerMember: 4.2 });
+    expect(first).toContain("1st");
+    expect(last).toContain("9th");
+    expect(last).toContain("Nothing carries over");
+
+    const firstSkeleton = first
+      .replaceAll("Prodeko", "GUILD_NAME")
+      .replaceAll("1st", "RANK")
+      .replaceAll("24.1", "WINNER_PER_MEMBER")
+      .replaceAll("22.8", "GUILD_PER_MEMBER")
+      .replaceAll("31%", "PARTICIPATION");
+    const lastSkeleton = last
+      .replaceAll("Athene", "GUILD_NAME")
+      .replaceAll("9th", "RANK")
+      .replaceAll("24.1", "WINNER_PER_MEMBER")
+      .replaceAll("4.2", "GUILD_PER_MEMBER")
+      .replaceAll("31%", "PARTICIPATION");
+
+    // The point of the test: with every interpolated value stripped out,
+    // nothing distinguishes the post read by the guild that won from the
+    // post read by the guild that finished last.
+    expect(firstSkeleton).toBe(lastSkeleton);
   });
 
   test("renders the winning guild reading its own post", () => {
@@ -337,6 +365,15 @@ describe("mondayPost (FR-20)", () => {
   // First names and guild names reach other users, so interpolation is escaped.
   test("escapes a guild name containing markup", () => {
     const post = mondayPost({ ...input, guildName: "<b>x</b>" });
+    expect(post).toContain("&lt;b&gt;x&lt;/b&gt;");
+  });
+
+  // winnerName is escaped at the same call site and the same risk level as
+  // guildName (both are attacker-reachable in a future phase); covered
+  // separately so a regression in one escape call cannot hide behind the
+  // other's test.
+  test("escapes a winner name containing markup", () => {
+    const post = mondayPost({ ...input, winnerName: "<b>x</b>" });
     expect(post).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
 });

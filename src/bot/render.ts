@@ -148,7 +148,7 @@ export interface MondayPostInput {
  * badly the reader's guild did.
  *
  * The participation figure is about the reader's own guild, not the winner's
- * (phase 2 design 4.3): it is the number the reader can actually change this week.
+ * (phase 2 design 3.3): it is the number the reader can actually change this week.
  *
  * Guild names come from config.ts and are trusted today; escaped defensively,
  * because this message reaches a whole guild chat.
