@@ -249,7 +249,7 @@ describe("restore fidelity, plain SQL format (scripts/dump.sh)", () => {
     // because when the table is empty, the terminator is the first line of copyBody
     // with no preceding newline, which is exactly the case this assertion exists to catch.
     const copyBody = dump.split(/^COPY public\.days [^\n]*\n/m)[1] ?? "";
-    const dumpedDays = copyBody.split(/^\\.$/m)[0]?.split("\n").filter((line) => line !== "") ?? [];
+    const dumpedDays = copyBody.split(/^\\\.$/m)[0]?.split("\n").filter((line) => line !== "") ?? [];
     expect(dumpedDays).toHaveLength(6);
 
     await createDatabase(TARGET_DB);

@@ -3,12 +3,16 @@
 A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
 University student guilds. One tap per day, guilds ranked on minutes per member.
 
-**Status:** Phases 1 to 4 are built: registration, `/log`, `/me`, `/standings`, the group chat
-(binding, pinned standings, the Monday post), reminders with their five-ignore auto-stop and
-`/remind`, and the restore-fidelity test that proves a backup is worth having. English, and
+**Status:** Phases 1 to 3 are built: registration, `/log`, `/me`, `/standings`, the group chat
+(binding, pinned standings, the Monday post), and reminders with their five-ignore auto-stop and
+`/remind`. Phase 4's code is also done, the restore-fidelity test that proves a backup is worth
+having and the decoder hardening against trailing junk, but Phase 4 itself is not complete: it
+reduces to NFR-3, a nightly backup, and NFR-3 is met by deploying this bot's database onto
+Tietokilta's infrastructure, which has not happened yet ([SPEC.md](SPEC.md) NFR-3). English, and
 reminders are a per-user choice. FR-11's optional tag is cut ([SPEC.md](SPEC.md) §9 Q5).
 
-Two things gate real use. No phase's smoke run has been done ([docs/SMOKE.md](docs/SMOKE.md)), and
+Three things gate real use. Nothing is deployed yet, so there is no off-machine backup of anything
+(see Deploy below). No phase's smoke run has been done ([docs/SMOKE.md](docs/SMOKE.md)). And
 competition dates are still a placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9 Q1).
 
 ## Start here

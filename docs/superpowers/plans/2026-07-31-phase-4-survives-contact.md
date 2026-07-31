@@ -10,6 +10,19 @@
 
 **Design:** [docs/superpowers/specs/2026-07-31-telegram-bot-phase-4-design.md](../specs/2026-07-31-telegram-bot-phase-4-design.md). Cite it in comments as "phase 4 design N.N".
 
+> **Correction added after execution (2026-07-31):** the verbatim document blocks this plan
+> prescribes in Tasks 4, 5 and 6 below state the Tietokilta deployment and NFR-3 as accomplished
+> fact, for example "it is deployed onto Tietokilta's existing infrastructure", "meets the
+> requirement, and it is met from the moment the database exists", "The bot runs on Tietokilta's
+> infrastructure", "Putting it there is also what satisfies NFR-3", and "which is also what makes
+> NFR-3 true". That was wrong: no Terraform module, no NixOS service, and no database exist on that
+> server. Four separate documents made this claim and each had to be corrected during execution,
+> across four separate fix rounds. **The shipped text in SPEC.md, README.md and CLAUDE.md is
+> authoritative, not the blocks below.** This plan is a historical record of what was instructed,
+> not of what shipped, so the blocks are left as originally written rather than edited to match the
+> outcome. See the design document's line 263: "The one thing not to write: a claim that NFR-3 is
+> done."
+
 ## Global Constraints
 
 These apply to every task. They are the project's standing rules, not this phase's inventions.
@@ -992,7 +1005,9 @@ service is not the competition's data."
 
 **Gaps deliberately left:** `COMPETITION_START` / `COMPETITION_END` and the guild `memberCount`
 values are launch tasks the owner answers, not plan tasks. The `Tietokilta/infra` PR is out of scope
-by the design's own §6. No task claims NFR-3 is done.
+by the design's own §6. **This claim did not hold:** four task blocks, in Tasks 4, 5 and 6, did
+state NFR-3 and the Tietokilta deployment as accomplished fact rather than pending, and each was
+corrected during execution. See the correction note near the top of this plan.
 
 **Placeholder scan:** no TBD, no "add error handling", no "similar to Task N". Every code step
 carries the actual code. The one step without code is Task 2 Step 3, which is deliberate: there is no

@@ -23,8 +23,10 @@ const TIER_VALUES = TIER_NAMES.map((tier) => TIER_MINUTES[tier]);
  * the synchronous moment this template literal runs, from a cache shared
  * across the whole client that is only populated once that client has
  * completed one prior round trip. A brand new client whose first-ever query
- * is this one has an empty cache, so the array is declared as scalar
- * text/int4 instead of an array type and gets serialized as
+ * is this one has an empty cache, so both arrays fall back to scalar text
+ * (postgres.js's inferType() returns the same untyped oid for a string
+ * element and a number element alike, so TIER_VALUES falls back to text too,
+ * not int4) instead of an array type, and get serialized as
  * `Array.prototype.toString()`, comma-joined with no braces, which Postgres
  * then rejects as a malformed array literal. The `::text[]` / `::int[]` casts
  * below do not help: the failure is in the wire-format parameter postgres.js

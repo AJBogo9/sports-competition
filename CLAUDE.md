@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun test                          # full suite (240 tests); DB tests need db-test running
+bun test                          # full suite (251 tests); DB tests need db-test running
 bun run test:db                   # starts the disposable db-test container, then bun test
 bun test tests/domain             # one directory
 bun test tests/db/standings.test.ts   # one file
@@ -34,6 +34,9 @@ port and uses a throwaway password.
   same for the group chat, and its comments cite it as "phase 2 design N.N".
   [The Phase 3 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-3-design.md) does the
   same for reminders, and its comments cite it as "phase 3 design N.N".
+  [The Phase 4 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-4-design.md) does the
+  same for the restore-fidelity test and the deployment target, and its comments cite it as
+  "phase 4 design N.N".
 - `.superpowers/sdd/<date>-telegram-bot-phase-<n>/progress.md` is the per-phase build ledger: every
   finding, ruling and deferred item, in order. `HANDOVER.md` beside it is the state summary.
   **These are local-only.** `.superpowers/sdd/.gitignore` contains `*`, so they are not in the
@@ -75,11 +78,13 @@ Handlers register `callback_query:data` listeners that fall through via `next()`
 order in `createBot` matters**: the blocked-clearing middleware first, then group, registration,
 check-in, reports, reminders, then a catch-all that answers unclaimed callbacks.
 
-**Phases 1 to 4 are built** (registration, `/log`, `/me`, `/standings`, the group chat binding, the
+**Phases 1 to 3 are built** (registration, `/log`, `/me`, `/standings`, the group chat binding, the
 pinned standings, the Monday post, the daily reminder with its five-ignore auto-stop, `/remind`, 403
-handling, and the restore-fidelity test). FR-11's optional tag is **cut**, not pending: SPEC.md §9
-Q5. **No phase's smoke run has been done yet** (docs/SMOKE.md), and that remains the gate on real
-users.
+handling). Phase 4's code is also done, the restore-fidelity test and the decoder hardening, but
+**Phase 4 itself is not complete**: it reduces to NFR-3, and NFR-3 is met by deploying this bot's
+database onto Tietokilta's infrastructure, which has not happened (SPEC.md NFR-3). FR-11's optional
+tag is **cut**, not pending: SPEC.md §9 Q5. **No phase's smoke run has been done yet**
+(docs/SMOKE.md), and that remains the gate on real users.
 
 ## Invariants that are easy to break
 
