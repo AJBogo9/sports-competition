@@ -78,3 +78,37 @@ export const TIMEZONE = "Europe/Helsinki";
  */
 export const COMPETITION_START = "2026-07-27";
 export const COMPETITION_END = "2026-09-20";
+
+/**
+ * FR-22. Five consecutive reminders with no response stop the daily send and
+ * buy exactly one message asking whether to continue (phase 3 design 3.2).
+ *
+ * A constant rather than configuration: FR-22 states the number, so a machine
+ * that used a different one would not be running this competition's rules.
+ */
+export const FOLLOWUP_AFTER_IGNORES = 5;
+
+/**
+ * Phase 3 design 4.1. A reminder missed at its hour (a deploy, a short outage,
+ * a slow tick) still goes out for this many hours, and after that the day is
+ * skipped in silence.
+ *
+ * Deliberately NOT the Monday post's "late rather than never" rule (phase 2
+ * design 4.4). Nobody blocks a group chat, and a 17:00 user pinged at 23:50 is
+ * the annoyance case SPEC.md section 11 rates High, which ends in a
+ * permanently unreachable user (SPEC.md section 3.2).
+ */
+export const REMINDER_GRACE_HOURS = 2;
+
+/**
+ * Phase 3 design 4.2. Reminder sends per tick. SPEC.md section 3.6 puts
+ * Telegram's broadcast limit at 30 per second; this paces at 25 per MINUTE,
+ * and the grace window above gives roughly 3,000 sends of capacity against a
+ * few hundred users.
+ *
+ * Rejected: a throttler dependency, and a sleep between sends. Both add a
+ * lifecycle to a problem the existing 60-second loop solves by doing less each
+ * time it runs, and a sleep would hold the tick open across the interval,
+ * colliding with startTicker's running guard.
+ */
+export const MAX_REMINDERS_PER_TICK = 25;
