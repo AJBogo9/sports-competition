@@ -1,8 +1,6 @@
 import type { Sql } from "postgres";
-import { TIER_MINUTES, type Tier } from "../config.ts";
-
-const TIER_NAMES = Object.keys(TIER_MINUTES) as Tier[];
-const TIER_VALUES = TIER_NAMES.map((tier) => TIER_MINUTES[tier]);
+import type { Tier } from "../config.ts";
+import { tierMinutes } from "./tiers.ts";
 
 export interface LogResult {
   /** The tier now stored for that day. */
@@ -90,9 +88,7 @@ export async function weekMinutes(
   weekStart: string,
 ): Promise<number> {
   const [row] = await sql<{ minutes: number }[]>`
-    WITH tier_minutes(tier, minutes) AS (
-      SELECT * FROM unnest(${sql.array(TIER_NAMES)}::text[], ${sql.array(TIER_VALUES)}::int[])
-    )
+    WITH tier_minutes(tier, minutes) AS (${tierMinutes(sql)})
     SELECT COALESCE(SUM(t.minutes), 0)::int AS minutes
     FROM days d
     JOIN tier_minutes t ON t.tier = d.tier

@@ -1,25 +1,6 @@
 import type { Sql } from "postgres";
-import { TIER_MINUTES, type Tier } from "../config.ts";
 import type { WeekTotal } from "../domain/scoring.ts";
-
-const TIER_NAMES = Object.keys(TIER_MINUTES) as Tier[];
-const TIER_VALUES = TIER_NAMES.map((tier) => TIER_MINUTES[tier]);
-
-/**
- * The config-backed tier lookup, injected into every query that converts tiers
- * into minutes. It is a CTE built from config on each call, never a table: no
- * total and nothing derived from TIER_MINUTES is ever stored (SPEC.md section
- * 4.4), so changing a tier value in config.ts and restarting recomputes all
- * history.
- *
- * One definition rather than four copies. Phase 3's "who has not logged today"
- * would have made it six.
- */
-function tierMinutes(sql: Sql) {
-  return sql`
-    SELECT * FROM unnest(${sql.array(TIER_NAMES)}::text[], ${sql.array(TIER_VALUES)}::int[])
-  `;
-}
+import { tierMinutes } from "./tiers.ts";
 
 export interface GuildStanding {
   slug: string;
@@ -160,6 +141,9 @@ export async function weeklyTotals(sql: Sql, telegramId: number): Promise<WeekTo
  *
  * ::numeric before the division and ::float8 after, because Postgres integer
  * division would truncate 2 / 650 to 0.
+ *
+ * `NOT u.blocked` is carried over from the same clause in `standings()` and
+ * `neighbours()`. It cannot fire until FR-23 lands in Phase 3; revisit it then.
  */
 export async function participation(
   sql: Sql,

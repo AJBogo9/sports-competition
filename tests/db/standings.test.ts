@@ -238,7 +238,34 @@ describe("participation (FR-20)", () => {
     expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(0);
   });
 
+  // WEEK_FROM and WEEK_TO are the range's exact boundaries, not a day inside
+  // it. BETWEEN is inclusive on both ends, and a log on either boundary date
+  // must still count, unlike the three-days-past-the-end case above.
+  test("includes both boundary dates of the range", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Bob" });
+    await logDay(sql, 1, "2026-07-27", "long"); // WEEK_FROM itself
+    await logDay(sql, 2, "2026-08-02", "long"); // WEEK_TO itself
+
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
+  });
+
   test("returns zero for a guild with nobody registered", async () => {
     expect(await participation(sql, "athene", WEEK_FROM, WEEK_TO)).toBe(0);
+  });
+
+  // Proves the u.guild_slug = g.slug join is load-bearing: a logger in
+  // another guild must not inflate this guild's numerator. Contamination here
+  // would be silent, since the fraction would still look plausible.
+  test("a logger in another guild does not inflate this guild's participation", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await createUser(sql, { telegramId: 2, guildSlug: "tik", firstName: "Bob" });
+    await logDay(sql, 2, "2026-07-28", "long");
+
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(0);
+  });
+
+  test("throws for a guild slug not in config", async () => {
+    expect(participation(sql, "nonexistent", WEEK_FROM, WEEK_TO)).rejects.toThrow(/not found/);
   });
 });
