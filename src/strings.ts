@@ -26,7 +26,7 @@ export const REMINDER_HOURS = [17, 18, 20, 21] as const;
  */
 export function welcome(firstName: string, guildName: string): string {
   return (
-    `Moi ${escapeHtml(firstName)}. You're in, for <b>${escapeHtml(guildName)}</b>.\n\n` +
+    `Hi ${escapeHtml(firstName)}. You're in, for <b>${escapeHtml(guildName)}</b>.\n\n` +
     "One tap a day, that's it. Most people forget by week three unless " +
     "something asks, so: should I?"
   );

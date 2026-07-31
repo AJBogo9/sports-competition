@@ -60,9 +60,15 @@ export async function sendCheckIn(ctx: Context, sql: Sql, telegramId: number): P
     return;
   }
   const { today, yesterday } = await calendar(sql);
+  // FR-10. Only offer the backdate button when yesterday is itself loggable.
+  // On the competition's first day, yesterday falls outside the window, and
+  // offering the button anyway would cost the user two taps (Yesterday, then
+  // any tier) to reach the same OUTSIDE_WINDOW refusal a single tap would
+  // have given them.
+  const backdateTo = isInWindow(yesterday) ? yesterday : null;
   await ctx.reply(CHECK_IN_PROMPT, {
     parse_mode: "HTML",
-    reply_markup: checkInKeyboard(today, yesterday),
+    reply_markup: checkInKeyboard(today, backdateTo),
   });
 }
 
@@ -77,11 +83,20 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
     const from = ctx.from;
     if (!callback || !from) return await next();
 
+    // Payload dates are never trusted for rendering either: a check-in
+    // message persists and its buttons stay live long after the day it was
+    // sent for, so callback.date can be stale by the time it's tapped. Both
+    // branches below recompute against the live calendar rather than the
+    // payload.
     if (callback.kind === "yesterday") {
       await ctx.answerCallbackQuery();
+      // Ignore the payload date entirely: this button only ever means "the
+      // day before today", so bind to the live yesterday regardless of what
+      // date the message happened to carry when it was rendered.
+      const { yesterday } = await calendar(sql);
       await ctx.editMessageText(CHECK_IN_PROMPT_YESTERDAY, {
         parse_mode: "HTML",
-        reply_markup: checkInKeyboard(callback.date, null),
+        reply_markup: checkInKeyboard(yesterday, null),
       });
       return;
     }
@@ -90,13 +105,20 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
     // match the date being re-offered: after a backdated undo, callback.date
     // is yesterday, and showing "Moved today?" while the buttons commit to
     // yesterday would let the user believe a yesterday write was for today.
+    //
+    // The payload date is kept only if it still equals the live today or
+    // yesterday; otherwise it falls back to today. This preserves undoing a
+    // backdated entry offering to re-log that same day, while a message gone
+    // stale beyond that falls back to something sensible rather than
+    // re-offering an arbitrary past date.
     if (callback.kind === "checkin") {
       await ctx.answerCallbackQuery();
-      const { today } = await calendar(sql);
-      const prompt = callback.date === today ? CHECK_IN_PROMPT : CHECK_IN_PROMPT_YESTERDAY;
+      const { today, yesterday } = await calendar(sql);
+      const date = callback.date === today || callback.date === yesterday ? callback.date : today;
+      const prompt = date === today ? CHECK_IN_PROMPT : CHECK_IN_PROMPT_YESTERDAY;
       await ctx.editMessageText(prompt, {
         parse_mode: "HTML",
-        reply_markup: checkInKeyboard(callback.date, null),
+        reply_markup: checkInKeyboard(date, null),
       });
       return;
     }
@@ -112,8 +134,25 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       // neither is a day that has not happened yet: callback data is not
       // guaranteed well-formed, even though the check-in UI only ever offers
       // today and yesterday.
-      const { today } = await calendar(sql);
-      if (!isInWindow(callback.date) || callback.date > today) {
+      //
+      // The future-date half of this guard is not merely defensive: weekMinutes
+      // sums the full Monday-to-Sunday week, while standings() and neighbours()
+      // sum only up to today, and those two only ever agree because no
+      // future-dated row can exist. Removing this guard would let a future
+      // write slip in and silently disagree with /me's own "Around you" row.
+      //
+      // Payload dates are also never trusted for staleness: a /log message
+      // sent on day N carries "today" and "yesterday" as they were on day N,
+      // but the message and its buttons stay live indefinitely. A tap on
+      // day N+3 must not be allowed to write three days back just because
+      // the payload still names that date, so today and yesterday are
+      // recomputed against the live calendar and anything else is refused.
+      const { today, yesterday } = await calendar(sql);
+      if (
+        !isInWindow(callback.date) ||
+        callback.date > today ||
+        (callback.date !== today && callback.date !== yesterday)
+      ) {
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(OUTSIDE_WINDOW);
         return;
@@ -141,13 +180,19 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
         return;
       }
 
-      // FR-26. The same guard as the log path: callback data is not
-      // guaranteed well-formed, and this must not write outside the
-      // competition window, or for a day that has not happened yet, even
-      // though the official client never offers an undo button for a date
-      // it wouldn't have let you log.
-      const { today } = await calendar(sql);
-      if (!isInWindow(callback.date) || callback.date > today) {
+      // FR-26. The same guard as the log path above, including the
+      // future-date/weekMinutes coupling and the staleness check: callback
+      // data is not guaranteed well-formed, and this must not write outside
+      // the competition window, for a day that has not happened yet, or for
+      // a stale date a persisted message still carries, even though the
+      // official client never offers an undo button for a date it wouldn't
+      // have let you log.
+      const { today, yesterday } = await calendar(sql);
+      if (
+        !isInWindow(callback.date) ||
+        callback.date > today ||
+        (callback.date !== today && callback.date !== yesterday)
+      ) {
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(OUTSIDE_WINDOW);
         return;

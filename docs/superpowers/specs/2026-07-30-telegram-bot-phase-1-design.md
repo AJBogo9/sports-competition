@@ -187,7 +187,7 @@ reusing the mockup's 10-slot bar exactly:
 
 This week   112 / 150 min
             ███████░░░
-38 minutes to go.
+One more session does it.
 
   [ Undo ]  [ My week ]  [ Standings ]
 ```

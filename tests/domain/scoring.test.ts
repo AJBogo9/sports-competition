@@ -8,6 +8,7 @@ import {
   guildBySlug,
 } from "../../src/config.ts";
 import {
+  competitionRanks,
   isInWindow,
   isTier,
   previousWeek,
@@ -130,6 +131,37 @@ describe("previousWeek", () => {
   // must not shift them. See design 4.2.
   test("is unaffected by the 25 October 2026 clock change", () => {
     expect(previousWeek("2026-10-26")).toBe("2026-10-19");
+  });
+});
+
+describe("competitionRanks", () => {
+  test("no ties, ranks are plain positions", () => {
+    expect(competitionRanks([24.1, 22.8, 18.0])).toEqual([1, 2, 3]);
+  });
+
+  test("all values equal, every rank is 1", () => {
+    expect(competitionRanks([0, 0, 0, 0, 0, 0, 0, 0, 0])).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  test("a tie at the top skips the next rank to 3", () => {
+    expect(competitionRanks([24.1, 24.1, 18.0])).toEqual([1, 1, 3]);
+  });
+
+  // The exact case from the review: 24.1, 22.8, 22.8, 18.0 renders 1, 2, 2, 4.
+  test("a tie in the middle skips the rank after it", () => {
+    expect(competitionRanks([24.1, 22.8, 22.8, 18.0])).toEqual([1, 2, 2, 4]);
+  });
+
+  test("a tie at the bottom shares the last rank", () => {
+    expect(competitionRanks([30, 24, 24])).toEqual([1, 2, 2]);
+  });
+
+  test("a single element is rank 1", () => {
+    expect(competitionRanks([42])).toEqual([1]);
+  });
+
+  test("an empty array produces no ranks", () => {
+    expect(competitionRanks([])).toEqual([]);
   });
 });
 

@@ -1,4 +1,4 @@
-import { progressBar, tierMinutes } from "../domain/scoring.ts";
+import { competitionRanks, progressBar, tierMinutes } from "../domain/scoring.ts";
 import { STANDINGS_FOOTER } from "../strings.ts";
 import { escapeHtml } from "../html.ts";
 import type { Tier } from "../config.ts";
@@ -83,6 +83,10 @@ export interface StandingsInput {
 }
 
 function table(rows: readonly GuildStanding[]): string {
+  // standings() orders by perMember DESC (with name/slug tiebreakers), so
+  // rows already arrive sorted best first, which is what competitionRanks
+  // requires. Not re-sorted here.
+  const ranks = competitionRanks(rows.map((row) => row.perMember));
   return rows
     .map((row, index) => {
       // guild names come from config.ts and are trusted today; escaped
@@ -91,7 +95,9 @@ function table(rows: readonly GuildStanding[]): string {
       // escaping would count those extra source bytes as column width and
       // misalign the table.
       const name = escapeHtml(row.name.padEnd(18));
-      return `${String(index + 1).padStart(2)}  ${name}${row.perMember.toFixed(1)}`;
+      // competitionRanks returns exactly one rank per input value, so ranks
+      // and rows are always the same length.
+      return `${String(ranks[index]!).padStart(2)}  ${name}${row.perMember.toFixed(1)}`;
     })
     .join("\n");
 }

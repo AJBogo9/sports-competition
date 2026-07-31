@@ -5,7 +5,7 @@ import { calendar } from "../db/calendar.ts";
 import { weekMinutes } from "../db/days.ts";
 import { neighbours, standings, weeklyTotals } from "../db/standings.ts";
 import { findUser } from "../db/users.ts";
-import { weeklyStreak } from "../domain/scoring.ts";
+import { competitionRanks, weeklyStreak } from "../domain/scoring.ts";
 import { meMessage, standingsMessage } from "./render.ts";
 import { decode } from "./callbacks.ts";
 import { NOT_REGISTERED } from "../strings.ts";
@@ -39,13 +39,22 @@ async function replyMe(ctx: Context, sql: Sql, telegramId: number): Promise<void
 
   const guild = guildBySlug(user.guildSlug);
 
+  // standings() orders by perMember DESC (with tiebreakers), so week already
+  // arrives sorted best first, which is what competitionRanks requires. Not
+  // re-sorted here. Ties share the best rank (owner decision): every guild
+  // sits jointly 1st before anyone has logged, rather than an arbitrary
+  // 1-to-9 ordering of identical zeros.
+  const ranks = competitionRanks(week.map((row) => row.perMember));
+
   await ctx.reply(
     meMessage({
       weekMinutes: minutes,
       target: WEEKLY_TARGET_MINUTES,
       streak: weeklyStreak(totals, weekStart),
       guildName: guild?.name ?? user.guildSlug,
-      guildRank: index + 1,
+      // competitionRanks returns exactly one rank per input value, so ranks
+      // and week are always the same length.
+      guildRank: ranks[index]!,
       guildCount: week.length,
       neighbours: around,
     }),

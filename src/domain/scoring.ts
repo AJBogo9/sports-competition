@@ -30,6 +30,24 @@ export function isInWindow(
   return date >= start && date <= end;
 }
 
+/**
+ * Standard competition ranking: equal values share the best rank and the next
+ * distinct value skips ahead, so ties render 1, 1, 3 rather than 1, 2, 3.
+ * Input must already be sorted best first. Returns one rank per input index.
+ */
+export function competitionRanks(values: readonly number[]): number[] {
+  const ranks: number[] = [];
+  let previousValue: number | undefined;
+  let previousRank = 0;
+  values.forEach((value, index) => {
+    const rank = value === previousValue ? previousRank : index + 1;
+    ranks.push(rank);
+    previousValue = value;
+    previousRank = rank;
+  });
+  return ranks;
+}
+
 export interface WeekTotal {
   weekStart: string;
   minutes: number;
@@ -39,6 +57,14 @@ export interface WeekTotal {
  * Steps one week back. These are calendar labels rather than instants, so the
  * arithmetic is anchored at UTC midnight and a daylight saving change cannot
  * shift the result. See design 4.2.
+ *
+ * This is a deliberate exception to the project rule that date buckets are
+ * computed in SQL and never with JavaScript date arithmetic (design 4.2):
+ * that rule protects against timezone conversion drifting a boundary across
+ * a clock change, and there is no timezone conversion here at all. The input
+ * and output are both yyyy-mm-dd calendar labels, parsed and formatted at
+ * UTC midnight, so minus seven days is exact regardless of what Europe/
+ * Helsinki's offset happens to be on either date.
  */
 export function previousWeek(weekStart: string): string {
   const date = new Date(`${weekStart}T00:00:00Z`);

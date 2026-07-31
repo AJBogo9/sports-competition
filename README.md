@@ -3,8 +3,11 @@
 A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
 University student guilds. One tap per day, guilds ranked on minutes per member.
 
-**Status:** specified, not started. English, and reminders are a per-user choice. Competition dates
-are the only open question ([SPEC.md](SPEC.md) §9), and they block only the config file.
+**Status:** Phase 1 is built: registration, `/log`, `/me`, `/standings`, and the Docker deployment
+below. English, and reminders are a per-user choice. What remains is Phases 2 to 4: the group chat,
+reminders actually being sent, optional tags, and the nightly backup ([SPEC.md](SPEC.md) §10).
+Competition dates are still a placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9); see Deploy
+below.
 
 ## Start here
 
@@ -13,6 +16,25 @@ are the only open question ([SPEC.md](SPEC.md) §9), and they block only the con
 | **[SPEC.md](SPEC.md)** | The requirements. Numbered, testable, with a build order. This is the source of truth |
 | [docs/evidence.md](docs/evidence.md) | Primary citations for every design decision, with exact figures and the claims that did not survive checking |
 | [prototype/bot-flows.html](prototype/bot-flows.html) | Clickable mockup of every screen. Open it in a browser |
+
+## Deploy
+
+1. `cp .env.example .env`, then fill it in: `BOT_TOKEN` from [@BotFather](https://t.me/BotFather)
+   (`/newbot`, then copy the token it gives you), and a `POSTGRES_PASSWORD` of your choosing.
+   `DATABASE_URL` already matches `docker-compose.yml`; leave it as is. `.env` is gitignored and
+   never committed.
+2. `docker compose up -d --build` starts the bot and its database. Logs: `docker compose logs -f
+   bot`.
+3. Before pointing this at a real competition, replace the placeholder dates in `src/config.ts`
+   (`COMPETITION_START` / `COMPETITION_END`, see the comment there) and re-verify every guild's
+   `memberCount`: it is the denominator of every ranking, so a stale count silently distorts every
+   comparison in the competition.
+4. For the eventual move to the guild's own hosting: `scripts/dump.sh` writes a timestamped dump to
+   `./backups`, and `scripts/restore.sh <dump.sql>` replaces the contents of a running database with
+   one. Copy the latest dump and `.env` over, then restore on the new host.
+
+**Never run the `test` compose profile (`db-test`) on the production host.** It binds a port on the
+host and uses a throwaway password; it exists only for `bun test` against a disposable database.
 
 ## The design in six lines
 

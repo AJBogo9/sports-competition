@@ -46,6 +46,14 @@ contain today. Nothing here is done until every box is ticked.
 - [ ] Log a day, re-log the same day at a different tier, then tap Undo, and
       confirm the message says the entry was put back (not removed) and that
       the weekly total matches what it was before the second log
+- [ ] Send `/log`, leave the message untapped overnight, then the next day tap
+      a tier on it and confirm the write lands on the day the prompt names
+      (today when it was sent), not the day it was actually sent. Repeat with
+      "Log yesterday instead" on a message from the day before: confirm it
+      binds to yesterday relative to when you tap it, not to the date baked
+      into the button when the message was sent. This is the one check here
+      that requires waiting a day; nothing same-session can catch a stale
+      message writing to the wrong day
 
 ## Reading
 
