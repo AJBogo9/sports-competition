@@ -147,8 +147,14 @@ export function remindSet(hour: number): string {
   );
 }
 
+/**
+ * "Turns them on again" rather than "turns them back on": the latter reads as
+ * a promise that the old hour returns on its own, which it does not. See
+ * SPEC.md section 9 Q4 (the FR-24 restore clause is not met by decision), and
+ * phase 3 design section 9.
+ */
 export const REMIND_OFF =
-  "Reminders off, starting now. /remind turns them back on whenever you want.";
+  "Reminders off, starting now. /remind turns them on again whenever you want.";
 
 /**
  * FR-22. Sent once, in place of the sixth consecutive daily reminder.

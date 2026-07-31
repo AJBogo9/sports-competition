@@ -405,6 +405,7 @@ lines above the hand counts in the earlier ledgers.
 | Per-user timezones | none | Rejected in design 4.1: one timezone for the whole competition |
 | Free-text reminder hour | none | `REMINDER_HOURS` offers four. A typed hour is a parser and a validation message for a choice nobody has asked to make |
 | Smart or personalised send times | none | SPEC.md §8's spirit: the user-chosen hour is the personalisation, and anything adaptive needs data this project does not store |
+| FR-24's restore-on-resume clause | none | Decided 2026-07-31, SPEC.md §9 Q4. `reminder_hour = NULL` on off discards the hour instead of remembering it. A column to hold it separately costs 40 to 60 lines against a ceiling with 114 remaining; re-picking from `/remind` is two taps |
 
 ---
 

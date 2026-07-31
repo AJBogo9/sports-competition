@@ -563,6 +563,16 @@ is not total silence.
 framework, no per-user language field, and no translation workflow. Guild names are used as they
 are. See FR-27.
 
+**Q4. FR-24's restore-on-resume clause is not met.** *Decided 2026-07-31.* FR-24's acceptance text
+says turning reminders back on restores the previously chosen hour. Phase 3 stores "off" as
+`reminder_hour = NULL`, which discards the hour rather than remembering it, so restoring it means
+picking it again from `/remind` rather than it reappearing on its own.
+
+Kept as is rather than adding a column and a migration to hold the hour separately from the on/off
+state. That is a schema change of roughly 40 to 60 lines against a ceiling (NFR-6) that had only 114
+lines of headroom at the time, with Phase 4 already budgeted at 120 of those. Re-picking the hour is
+two taps.
+
 ### Unresolved but not blocking
 
 - Are the guild member counts in section 1 current? They are the per-capita denominator.
