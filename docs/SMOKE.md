@@ -84,6 +84,100 @@ contain today. Nothing here is done until every box is ticked.
       Phase 1
 - [ ] A guild with nobody registered still appears in the table, at zero
 
+## The group chat (Phase 2)
+
+`group.ts` and the Telegram calls in `ticker.ts` have no automated tests, by design: this section
+is their entire acceptance basis, the same way the sections above are for the three Phase 1
+handlers. Needs a bot token, a second, non-admin test account for the refusal checks, and up to
+four disposable test groups. Keep `docker compose logs -f bot` open throughout: two steps below
+can only be confirmed there.
+
+- [ ] Open `t.me/<bot>?startgroup=prodeko` as an admin of a test group and pick the group.
+      Telegram is expected to deliver `my_chat_member` (which posts the nine-guild picker) before
+      the `/start prodeko` message (which posts the binding confirmation), so the picker may
+      flash up and then be followed immediately by "This chat is now following Prodeko". This has
+      never been checked against a real client: watch closely and record exactly which messages
+      appeared and in what order, since the answer decides whether the picker needs suppressing
+      on this path. Whichever order they arrive in, the chat must end up bound to Prodeko, naming
+      the guild (FR-18)
+- [ ] Add the bot to a second test group from the group's own Add Member screen, with no deep
+      link. It offers the nine-guild picker instead (FR-18)
+- [ ] Tap a guild in that picker as a **non-admin**. It must refuse, as a toast popup rather than
+      a chat message, and change nothing: no binding is created. Then tap as an admin and confirm
+      it binds. This protects every number the chat will ever show, so it is worth the second
+      account
+- [ ] Add the bot to a third test group with no deep link so the picker appears again, but bind
+      the chat with `/start@<bot> athene` as an admin instead of tapping it. The picker message
+      is now stale. Tap it and confirm the bot answers with a message naming Athene as the guild
+      the chat currently follows and telling the admin to use Athene's link to change it, and
+      that the binding is still Athene afterward, whichever guild the stale button named. A
+      picker left over from the first step's race would sit in exactly this state, so this is the
+      control for it
+- [ ] Send `/start@<bot> inkubio` in the first group, still bound to Prodeko, as a non-admin. It
+      must refuse, this time as a chat message rather than a toast, since a command is not a
+      callback. As an admin it must rebind the chat to Inkubio, and the pinned message must show
+      Inkubio's line on the next refresh. This is now the only rebinding path, so if it broke,
+      every already-bound chat would be stranded
+- [ ] Open question, not a pass or fail: have an admin turn on "Remain anonymous" in a test group,
+      so their messages show as sent by GroupAnonymousBot, then try both binding paths while
+      posting anonymously: an unclaimed `/start@<bot> <slug>` and a tap on a guild picker. Record
+      what actually happens. Nothing in the code special-cases GroupAnonymousBot: the admin check
+      calls `getChatMember` on whichever user sent the update, and on the picker-tap path that
+      call happens before the callback is acknowledged, so if it throws, the expected failure
+      mode is the tap spinning with no toast and no bind, not a clean refusal
+- [ ] The command menu in the group offers `/standings` but not `/log` (FR-17)
+- [ ] Within 15 minutes a standings message appears and is pinned. Confirm pinning it produced
+      **no notification** for other members (FR-19)
+- [ ] Log something from a phone, wait for the next refresh, and confirm the pinned message's
+      number changes **without** the chat showing as unread or producing a notification. This is
+      FR-19's actual acceptance test
+- [ ] Remove the bot's pin permission, add it to a fourth group, and confirm the standings message
+      still appears and still updates, with one extra line asking to be made an admin. Then
+      promote the bot. The line is rendered from the pin state as it was *before* that refresh's
+      retry, so the retry re-pins the message on the very next refresh but the line itself only
+      clears on the refresh after that: confirm the message is genuinely pinned again within 15
+      minutes of promoting, and that the line is gone within 30 (two refreshes), not one
+- [ ] Delete the bot's pinned standings message by hand (delete it, not unpin it), then log an
+      activity from a test account so the rendered text actually changes. A refresh with nothing
+      new to say is a no-op that never calls Telegram and so never discovers the message is gone,
+      which is why the text needs to change first. The next refresh should discover the edit
+      target is missing and forget it, and the refresh after that should send and pin a fresh
+      message: confirm this completes within 30 minutes and that the log never repeats the same
+      error on every refresh after
+- [ ] Remove the bot from a group. Confirm it stops posting there, and that the other groups are
+      unaffected
+- [ ] `docker compose restart bot`, then confirm the pinned message still updates in place rather
+      than a second message appearing (NFR-5)
+- [ ] Across the whole session above, check the bot's logs for the line `tick skipped: previous
+      tick is still running`. It must not appear. Its presence would mean a tick is routinely
+      taking longer than 60 seconds, which the re-entrancy guard would otherwise hide completely
+
+### The Monday post
+
+The Monday post cannot be observed without waiting for a Monday. To test it now, bind a chat and
+move its ledger back one week by hand:
+
+```sql
+UPDATE chats SET last_monday_week = last_monday_week - INTERVAL '7 days';
+```
+
+- [ ] Within a minute the bot posts a new message (not an edit) that notifies, names last week's
+      winning guild with its minutes per member, gives this chat's own guild its placement and
+      participation percentage, and says the week starts at zero (FR-20)
+- [ ] Run the same `UPDATE` again and confirm exactly one further post appears, not two. Then
+      restart the bot mid-week and confirm no post appears at all, which is the exactly-once
+      ledger doing its job
+- [ ] Confirm no Monday post fires for a chat bound this week, and none fires for the
+      competition's first week
+
+**Known gap:** the competition window ends on a Sunday (`COMPETITION_END`), so the wrap-up Monday
+post for the final week would fall due the Monday after it, and by then `isInWindow` is already
+false, so the ticker returns before it ever reaches the Monday-post check. That last week's
+result never gets a Monday post from this mechanism. This is not a checklist step because there
+is nothing to run against a real client here, only a scheduling gap; whoever owns the real
+competition dates should decide whether to special-case the closing week or post the final
+standings some other way.
+
 ## Survival
 
 - [ ] `docker compose restart bot` mid-session, then tap a button on a message
