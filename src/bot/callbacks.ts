@@ -11,6 +11,12 @@ import type { Tier } from "../config.ts";
 export type Callback =
   | { kind: "guild"; slug: string }
   | { kind: "hour"; hour: number | null }
+  /** FR-24. /remind's own hour choice. Distinct from "hour" above, which
+   *  registration owns: that confirmation carries the target and privacy copy
+   *  and /remind must repeat neither (phase 3 design 4.4). */
+  | { kind: "remind"; hour: number | null }
+  /** FR-22. "Keep them" on the follow-up: resume without re-choosing an hour. */
+  | { kind: "keep" }
   | { kind: "log"; date: string; tier: Tier }
   | { kind: "undo"; date: string; restore: Tier | null }
   | { kind: "yesterday"; date: string }
@@ -28,6 +34,8 @@ export function encode(callback: Callback): string {
   switch (callback.kind) {
     case "guild":     return `guild:${callback.slug}`;
     case "hour":      return `hour:${callback.hour ?? "off"}`;
+    case "remind":    return `remind:${callback.hour ?? "off"}`;
+    case "keep":      return "keep";
     case "log":       return `log:${callback.date}:${callback.tier}`;
     case "undo":      return `undo:${callback.date}:${callback.restore ?? "none"}`;
     case "yesterday": return `yesterday:${callback.date}`;
@@ -48,6 +56,7 @@ export function decode(data: string): Callback | null {
     case "stay":
     case "me":
     case "standings":
+    case "keep":
       return data === kind ? { kind } : null;
 
     case "guild":
@@ -64,6 +73,13 @@ export function decode(data: string): Callback | null {
       if (!first || !/^\d{1,2}$/.test(first)) return null;
       const hour = Number(first);
       return hour >= 0 && hour <= 23 ? { kind: "hour", hour } : null;
+    }
+
+    case "remind": {
+      if (first === "off") return { kind: "remind", hour: null };
+      if (!first || !/^\d{1,2}$/.test(first)) return null;
+      const hour = Number(first);
+      return hour >= 0 && hour <= 23 ? { kind: "remind", hour } : null;
     }
 
     case "yesterday":

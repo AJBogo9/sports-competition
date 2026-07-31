@@ -56,7 +56,9 @@ describe("callback encoding", () => {
 
   // Offering the check-in again after an undo is a different intent from
   // switching the keyboard to yesterday, even though both re-render a
-  // keyboard. Keeping them distinct matters once Phase 3 sends check-ins.
+  // keyboard. The reminder pass sends the check-in message daily, so a payload
+  // that means "offer the check-in again" and one that means "switch to
+  // yesterday" are now both in live circulation.
   test("a checkin payload is distinct from a yesterday payload", () => {
     expect(encode({ kind: "checkin", date: "2026-07-30" }))
       .not.toBe(encode({ kind: "yesterday", date: "2026-07-30" }));
@@ -82,5 +84,45 @@ describe("bind (FR-18)", () => {
     expect(decode("bind:NOT A SLUG")).toBeNull();
     expect(decode("bind:")).toBeNull();
     expect(decode("bind")).toBeNull();
+  });
+});
+
+describe("remind and keep (FR-22, FR-24)", () => {
+  // Phase 3 design 4.4. A separate kind from "hour", which registration owns:
+  // that one's confirmation carries the 150 minute target and the privacy
+  // notice SPEC.md section 6 requires at registration, and /remind must repeat
+  // neither. One kind would mean one handler guessing which message it is
+  // editing, which it cannot know.
+  test("a remind hour round-trips", () => {
+    expect(decode(encode({ kind: "remind", hour: 20 }))).toEqual({ kind: "remind", hour: 20 });
+  });
+
+  test("remind off round-trips", () => {
+    expect(decode(encode({ kind: "remind", hour: null }))).toEqual({ kind: "remind", hour: null });
+  });
+
+  test("keep round-trips", () => {
+    expect(decode(encode({ kind: "keep" }))).toEqual({ kind: "keep" });
+  });
+
+  test("midnight is a real hour, not a falsy one", () => {
+    expect(decode(encode({ kind: "remind", hour: 0 }))).toEqual({ kind: "remind", hour: 0 });
+  });
+
+  test("an out-of-range hour is rejected", () => {
+    expect(decode("remind:24")).toBeNull();
+    expect(decode("remind:-1")).toBeNull();
+    expect(decode("remind:")).toBeNull();
+    expect(decode("remind:evening")).toBeNull();
+  });
+
+  test("keep takes no payload", () => {
+    expect(decode("keep:1")).toBeNull();
+  });
+
+  // Telegram rejects callback_data over 64 bytes.
+  test("both payloads are well inside Telegram's limit", () => {
+    expect(encode({ kind: "remind", hour: 20 }).length).toBeLessThan(64);
+    expect(encode({ kind: "keep" }).length).toBeLessThan(64);
   });
 });

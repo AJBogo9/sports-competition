@@ -1,5 +1,5 @@
 import type { Sql } from "postgres";
-import { GUILDS } from "../config.ts";
+import { GUILDS, TIMEZONE } from "../config.ts";
 
 export interface UserRow {
   telegramId: number;
@@ -7,6 +7,13 @@ export interface UserRow {
   firstName: string;
   username: string | null;
   reminderHour: number | null;
+  /** FR-4. Whether the reminder question has been put to them at all, which
+   *  reminderHour = null cannot express on its own (phase 3 design 2.1). */
+  reminderAsked: boolean;
+  /** users.ignored_streak. FR-22's pause is stored here, not in reminderHour,
+   *  so a caller that wants to know whether a user is paused (rather than off)
+   *  needs this alongside reminderHour (phase 3 design 3.3). */
+  ignoredStreak: number;
 }
 
 interface UserRecord {
@@ -15,6 +22,8 @@ interface UserRecord {
   first_name: string;
   username: string | null;
   reminder_hour: number | null;
+  reminder_asked: boolean;
+  ignored_streak: number;
 }
 
 /** BIGINT arrives as a string from the driver. Telegram IDs are well inside
@@ -26,10 +35,13 @@ function toUser(record: UserRecord): UserRow {
     firstName: record.first_name,
     username: record.username,
     reminderHour: record.reminder_hour,
+    reminderAsked: record.reminder_asked,
+    ignoredStreak: record.ignored_streak,
   };
 }
 
-const USER_COLUMNS = "telegram_id::text, guild_slug, first_name, username, reminder_hour";
+const USER_COLUMNS =
+  "telegram_id::text, guild_slug, first_name, username, reminder_hour, reminder_asked, ignored_streak";
 
 /**
  * Mirrors the config roster into the database at startup (FR-25). Names and
@@ -88,12 +100,49 @@ export async function moveUser(sql: Sql, telegramId: number, guildSlug: string):
   await sql`UPDATE users SET guild_slug = ${guildSlug} WHERE telegram_id = ${telegramId}`;
 }
 
-/** FR-4 and FR-24. null means reminders off, which is a real stored answer
- *  rather than an absence of one. */
+/**
+ * FR-4 and FR-24. null means reminders off, which is a real stored answer
+ * rather than an absence of one.
+ *
+ * Three writes, not one, and the two extra ones are load-bearing:
+ *
+ * - reminder_asked records that the question was put at all, so a decliner is
+ *   never asked again (phase 3 design 4.6).
+ * - ignored_streak resets, because setting an hour is the explicit consent
+ *   phase 3 design 3.3 requires to lift an FR-22 pause. Without it, a paused
+ *   user who ran /remind would be told reminders were back on and then
+ *   silently receive nothing, since dueReminders excludes a paused row.
+ *   Turning reminders OFF resets it too, so switching them on again later
+ *   starts a fresh count rather than three ignores into an old one.
+ * - last_reminded_at is stamped when the chosen hour has already passed
+ *   locally (phase 3 design 3.4). Someone picking 20:00 at 21:00 is inside
+ *   that hour's grace window and would otherwise be sent a check-in message
+ *   seconds after asking to be reminded at 20:00. Picking an hour still to
+ *   come is untouched and still fires the same evening.
+ *
+ * The local hour is read in the same statement, in TIMEZONE, so no caller has
+ * to supply a clock. `at` pins a fixed instant for tests only, exactly as
+ * calendar() does; production callers pass nothing and get now().
+ */
 export async function setReminderHour(
   sql: Sql,
   telegramId: number,
   hour: number | null,
+  at: string | null = null,
 ): Promise<void> {
-  await sql`UPDATE users SET reminder_hour = ${hour} WHERE telegram_id = ${telegramId}`;
+  await sql`
+    UPDATE users
+       SET reminder_hour    = ${hour},
+           reminder_asked   = TRUE,
+           ignored_streak   = 0,
+           last_reminded_at = CASE
+             WHEN ${hour}::smallint IS NOT NULL
+              AND ${hour}::smallint <= EXTRACT(
+                    HOUR FROM (COALESCE(${at}::timestamptz, now()) AT TIME ZONE ${TIMEZONE})
+                  )::int
+             THEN COALESCE(${at}::timestamptz, now())
+             ELSE last_reminded_at
+           END
+     WHERE telegram_id = ${telegramId}
+  `;
 }

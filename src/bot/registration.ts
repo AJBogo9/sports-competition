@@ -60,15 +60,16 @@ function moveOrStayKeyboard(
 }
 
 /**
- * FR-4: reminder_hour is NULL both for "never asked" and for "asked and
- * declined", since Phase 1 has no reminder_asked column to tell them apart.
- * Re-offering costs a decliner one extra tap; not offering risks leaving
- * someone who lands here (a stale-button tap, a double-tap race, a Move or
- * Stay outcome) never asked at all, which FR-4 forbids. Phase 3 should add a
- * reminder_asked column and drop this.
+ * FR-4. Offered until the question has actually been put, which is what
+ * reminder_asked records (phase 3 design 4.6).
+ *
+ * Phase 1 tested reminderHour === null instead, because reminder_hour was NULL
+ * both for "never asked" and for "asked and declined", which cost a decliner
+ * the question again on every /start. Migration 003 separates them and this is
+ * the test that replaces it.
  */
-function reminderKeyboardIfUnset(reminderHour: number | null): InlineKeyboard | undefined {
-  return reminderHour === null ? reminderKeyboard() : undefined;
+function reminderKeyboardIfUnasked(reminderAsked: boolean): InlineKeyboard | undefined {
+  return reminderAsked ? undefined : reminderKeyboard();
 }
 
 export function installRegistration(bot: Bot, sql: Sql): void {
@@ -101,7 +102,7 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       }
       await ctx.reply(alreadyRegistered(current?.name ?? existing.guildSlug), {
         parse_mode: "HTML",
-        reply_markup: reminderKeyboardIfUnset(existing.reminderHour),
+        reply_markup: reminderKeyboardIfUnasked(existing.reminderAsked),
       });
       await sendCheckIn(ctx, sql, from.id);
       return;
@@ -141,12 +142,7 @@ export function installRegistration(bot: Bot, sql: Sql): void {
         }
         await ctx.editMessageText(alreadyRegistered(current?.name ?? existing.guildSlug), {
           parse_mode: "HTML",
-          // reminder_hour is NULL both for "never asked" and for "asked and
-          // declined", so we cannot tell them apart in Phase 1. Re-offering
-          // costs a decliner one extra tap; not offering can leave a
-          // double-tapper never asked at all, which FR-4 forbids. Phase 3
-          // should add a reminder_asked column and drop this.
-          reply_markup: reminderKeyboardIfUnset(existing.reminderHour),
+          reply_markup: reminderKeyboardIfUnasked(existing.reminderAsked),
         });
         return;
       }
@@ -180,9 +176,9 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       await ctx.answerCallbackQuery(TOAST_MOVED);
       await ctx.editMessageText(moved(guild.name), {
         parse_mode: "HTML",
-        // See reminderKeyboardIfUnset: moving guilds never touches
-        // reminder_hour, so a mover who was never asked still needs asking.
-        reply_markup: reminderKeyboardIfUnset(before?.reminderHour ?? null),
+        // See reminderKeyboardIfUnasked: moving guilds never touches the
+        // reminder question, so a mover who was never asked still needs asking.
+        reply_markup: reminderKeyboardIfUnasked(before?.reminderAsked ?? false),
       });
       return;
     }
@@ -193,9 +189,8 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       await ctx.answerCallbackQuery();
       await ctx.editMessageText(stayed(guild?.name ?? FALLBACK_GUILD), {
         parse_mode: "HTML",
-        // See reminderKeyboardIfUnset: staying never touches reminder_hour
-        // either, so a stayer who was never asked still needs asking.
-        reply_markup: user ? reminderKeyboardIfUnset(user.reminderHour) : undefined,
+        // See reminderKeyboardIfUnasked: staying never touches it either.
+        reply_markup: user ? reminderKeyboardIfUnasked(user.reminderAsked) : undefined,
       });
       return;
     }

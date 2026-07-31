@@ -270,18 +270,15 @@ describe("participation (FR-20)", () => {
   });
 });
 
-// The `blocked` column exists (migration 001, from SPEC.md section 6) and
-// nothing writes it until FR-23 lands in Phase 3, so these tests set it
-// directly. They are the executable form of a decision that used to live only
-// in a comment: blocking the bot is a decision about being messaged, and it
-// must never move a number.
+// `blocked` is written by FR-23 as of Phase 3, so these tests describe a state
+// real users reach rather than one only this file can construct. They are the
+// executable form of a decision that used to live only in a comment: blocking
+// the bot is a decision about being messaged, and it must never move a number.
 //
-// Every one of these passes trivially today, because nothing sets the column.
-// That is the point. They fail the moment someone restores `AND NOT u.blocked`
-// from the query printed in SPEC.md section 6, which is the realistic way this
-// regresses: that query is the source of truth's own text, it looks obviously
-// right, and the damage it does is invisible until a real user blocks the bot
-// mid-competition.
+// They fail the moment someone restores `AND NOT u.blocked` from the query
+// printed in SPEC.md section 6, which is the realistic way this regresses: that
+// query is the source of truth's own text, it looks obviously right, and the
+// damage it does is invisible until a real user blocks the bot mid-competition.
 describe("blocked users still count toward every score", () => {
   beforeEach(async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });

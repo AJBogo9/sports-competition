@@ -44,6 +44,30 @@ function checkInKeyboard(date: string, yesterday: string | null): InlineKeyboard
   return keyboard;
 }
 
+export interface CheckIn {
+  text: string;
+  keyboard: InlineKeyboard;
+}
+
+/**
+ * FR-6 and FR-21. One definition of the check-in message, rendered from the
+ * live calendar dates.
+ *
+ * FR-21 says the daily reminder MUST send the check-in message, not a message
+ * that resembles it. The reminder pass has bot.api and a chat id but no ctx,
+ * so without this there would be two constructions that agree today and drift
+ * later. Pure, and takes the dates as arguments, so the ticker can render once
+ * per tick instead of issuing a calendar query per user.
+ */
+export function checkInMessage(today: string, yesterday: string): CheckIn {
+  // FR-10. Only offer the backdate button when yesterday is itself loggable.
+  // On the competition's first day, yesterday falls outside the window, and
+  // offering the button anyway would cost the user two taps (Yesterday, then
+  // any tier) to reach the same OUTSIDE_WINDOW refusal a single tap gives.
+  const backdateTo = isInWindow(yesterday) ? yesterday : null;
+  return { text: CHECK_IN_PROMPT, keyboard: checkInKeyboard(today, backdateTo) };
+}
+
 /** The undo button carries the tier this log displaced, so FR-9 can put it
  *  back rather than merely deleting the day. See design 4.5. */
 function afterLogKeyboard(date: string, displaced: Tier | null): InlineKeyboard {
@@ -61,16 +85,8 @@ export async function sendCheckIn(ctx: Context, sql: Sql, telegramId: number): P
     return;
   }
   const { today, yesterday } = await calendar(sql);
-  // FR-10. Only offer the backdate button when yesterday is itself loggable.
-  // On the competition's first day, yesterday falls outside the window, and
-  // offering the button anyway would cost the user two taps (Yesterday, then
-  // any tier) to reach the same OUTSIDE_WINDOW refusal a single tap would
-  // have given them.
-  const backdateTo = isInWindow(yesterday) ? yesterday : null;
-  await ctx.reply(CHECK_IN_PROMPT, {
-    parse_mode: "HTML",
-    reply_markup: checkInKeyboard(today, backdateTo),
-  });
+  const message = checkInMessage(today, yesterday);
+  await ctx.reply(message.text, { parse_mode: "HTML", reply_markup: message.keyboard });
 }
 
 export function installCheckIn(bot: Bot, sql: Sql): void {

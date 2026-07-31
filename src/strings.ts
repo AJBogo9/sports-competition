@@ -36,13 +36,14 @@ export function welcome(firstName: string, guildName: string): string {
  * FR-4 requires a real choice with no silent default in either direction, and
  * SPEC.md section 6 requires the privacy notice at registration.
  *
- * The "change it any time" sentence is deliberately absent: /remind doesn't
- * exist until Phase 3. Restore it there, alongside the command itself.
+ * The "change it any time" sentence was cut in Phase 1 because /remind did not
+ * exist yet, and is restored here alongside the command (FR-24, which requires
+ * the control to be discoverable rather than only documented in help text).
  */
 /** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function reminderSet(hour: number, guildName: string): string {
   return (
-    `Set for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +
+    `Set for <b>${String(hour).padStart(2, "0")}:00</b>. Change it any time with /remind.\n\n` +
     `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
     `Your first name and how much you move are visible to others in ${escapeHtml(guildName)}.`
   );
@@ -51,7 +52,7 @@ export function reminderSet(hour: number, guildName: string): string {
 /** guildName comes from config.ts and is trusted today; escaped defensively. */
 export function reminderOff(guildName: string): string {
   return (
-    "No reminders. Log whenever you like with /log.\n\n" +
+    "No reminders. Log whenever you like with /log, and /remind turns them on.\n\n" +
     `Target is <b>${WEEKLY_TARGET_MINUTES} minutes a week</b>, the WHO guideline. That's about four sessions.\n\n` +
     `Your first name and how much you move are visible to others in ${escapeHtml(guildName)}.`
   );
@@ -109,6 +110,78 @@ export function toastReminderSet(hour: number): string {
   return `Reminder set for ${hour}:00`;
 }
 
+/**
+ * FR-24. /remind's own screens. Deliberately shorter than the registration
+ * pair above: the 150 minute target and the privacy notice belong to the
+ * moment of registering (SPEC.md section 6), and repeating them every time
+ * someone changes an hour would train people to skip them.
+ */
+export function remindStatusOn(hour: number): string {
+  return (
+    `Reminders are on for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +
+    "Pick a different hour, or turn them off."
+  );
+}
+
+export const REMIND_STATUS_OFF =
+  "Reminders are off.\n\nPick an hour and I'll ask on days you haven't logged.";
+
+/**
+ * FR-22 and phase 3 design 3.3. /remind's third status: paused by the
+ * five-ignore auto-stop rather than turned off. reminderHour survives a pause
+ * untouched, so it is named here, and picking any hour below (that one or a
+ * new one) is what lifts the pause, exactly as it would from the follow-up.
+ */
+export function remindStatusPaused(hour: number): string {
+  return (
+    "Reminders are stopped: five days went unanswered.\n\n" +
+    `They'd resume at <b>${String(hour).padStart(2, "0")}:00</b>. Pick that hour again, ` +
+    "or a different one, and they start right away."
+  );
+}
+
+export function remindSet(hour: number): string {
+  return (
+    `Set for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +
+    "I'll only ask on days you haven't logged."
+  );
+}
+
+/**
+ * "Turns them on again" rather than "turns them back on": the latter reads as
+ * a promise that the old hour returns on its own, which it does not. See
+ * SPEC.md section 9 Q4 (the FR-24 restore clause is not met by decision), and
+ * phase 3 design section 9.
+ */
+export const REMIND_OFF =
+  "Reminders off, starting now. /remind turns them on again whenever you want.";
+
+/**
+ * FR-22. Sent once, in place of the sixth consecutive daily reminder.
+ *
+ * Three things it has to do. Say what happened, so the silence that follows is
+ * explained rather than read as the bot breaking. Offer both outcomes as real
+ * buttons, because the point of asking is that they might simply have been
+ * away. And name the way back in the text itself, which FR-22 requires
+ * explicitly, so an ignored follow-up still leaves a route to reminders
+ * through a message they can scroll back to.
+ */
+export const REMINDER_FOLLOWUP =
+  "<b>Five days, no answer.</b>\n\n" +
+  "I've stopped the daily nudge so it doesn't become noise. Want it back?\n\n" +
+  "Either way, /remind changes this any time.";
+
+export const BUTTON_REMINDER_KEEP = "Keep them";
+export const BUTTON_REMINDER_STOP = "Turn them off";
+export const TOAST_REMINDERS_KEPT = "Reminders back on";
+
+export function remindersKept(hour: number): string {
+  return (
+    `Back on for <b>${String(hour).padStart(2, "0")}:00</b>.\n\n` +
+    "I'll only ask on days you haven't logged."
+  );
+}
+
 /** Used when a guild lookup fails and the message still needs some name. */
 export const FALLBACK_GUILD = "your guild";
 
@@ -117,6 +190,9 @@ export const COMMAND_DESCRIPTIONS = {
   log: "Log today",
   me: "My week",
   standings: "Guild standings",
+  // FR-24 requires the reminder control to be discoverable from the command
+  // menu, not merely documented in help text.
+  remind: "Reminder settings",
 } as const;
 
 export const UNDO_DONE = "Removed.";

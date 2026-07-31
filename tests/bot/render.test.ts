@@ -245,11 +245,14 @@ describe("registration copy", () => {
     expect(reminderOff("Prodeko")).toContain(`${WEEKLY_TARGET_MINUTES} minutes a week`);
   });
 
-  // /remind does not exist until Phase 3. Directing a user to it now would
-  // point them at a command that silently does nothing.
-  test("Phase 1 copy never points at the not-yet-existing /remind command", () => {
-    expect(reminderSet(20, "Prodeko")).not.toContain("/remind");
-    expect(reminderOff("Prodeko")).not.toContain("/remind");
+  // FR-24 requires the control to be discoverable rather than only documented
+  // in help text, and this is the moment every user passes through. Phase 1
+  // asserted the opposite: /remind did not exist yet, and pointing at a
+  // command that silently does nothing is worse than not mentioning it. Phase
+  // 3 adds the command, so the restraint inverts into a requirement.
+  test("the registration copy points at /remind, which exists now", () => {
+    expect(reminderSet(20, "Prodeko")).toContain("/remind");
+    expect(reminderOff("Prodeko")).toContain("/remind");
   });
 
   // Telegram first names are attacker-controlled (security).
