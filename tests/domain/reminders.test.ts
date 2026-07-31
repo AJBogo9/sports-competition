@@ -54,6 +54,13 @@ describe("reminderAction (FR-21, FR-22)", () => {
     expect(decide(3, true)).toEqual({ action: "daily", nextStreak: 1 });
   });
 
+  // Phase 3 design 3.3. At exactly the threshold the follow-up has not been
+  // sent yet, so a response still resets the count. Only a streak past the
+  // threshold is a pause that a response cannot lift.
+  test("a response at the exact threshold resets the count", () => {
+    expect(decide(AFTER, true)).toEqual({ action: "daily", nextStreak: 1 });
+  });
+
   // Phase 3 design 3.3, the ruling most likely to be undone by accident.
   // Logging is engagement with the competition, not consent to be messaged.
   // The follow-up asked for consent and got no answer, so a log must NOT
