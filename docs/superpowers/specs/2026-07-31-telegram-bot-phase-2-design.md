@@ -121,8 +121,18 @@ non-admin who opens the link is told an admin has to confirm, and the picker sta
 
 **Rebinding is allowed** and is the same operation: an admin binding an already-bound chat updates
 `guild_slug` in place. The pinned message is kept rather than re-sent, since its identity does not
-depend on the guild, and the next refresh re-renders it with the new guild's line highlighted.
-`last_monday_week` is not reset, so rebinding cannot be used to trigger a second Monday post.
+depend on the guild. `last_monday_week` is not reset, so rebinding cannot be used to trigger a
+second Monday post.
+
+**What `guild_slug` actually changes is the Monday post, and nothing else.** The pinned standings
+render the same nine-guild table for every chat, because they are the same two tables
+`/standings` produces (3.2) and those are competition-wide. Only the Monday post is
+guild-specific: it names the reader's own guild, its placement and its participation. So the
+visible effect of a rebind is the confirmation message at the time, and the following Monday.
+An earlier draft of this section said the next refresh would re-render the pin "with the new
+guild's line highlighted", which was never true: `pinnedStandings` takes no guild and the
+prototype's pinned message has no highlight. Corrected here because a smoke step was written
+against the claim and could not have failed.
 
 **Rebinding goes through the link only. The picker binds an unbound chat and nothing else.**
 Telegram delivers `my_chat_member` before the `/start <slug>` message, so on the primary path the
