@@ -8,8 +8,8 @@ const SAMPLES: Callback[] = [
   { kind: "hour", hour: null },
   { kind: "log", date: "2026-07-30", tier: "short" },
   { kind: "log", date: "2026-07-30", tier: "rest" },
-  { kind: "undo", date: "2026-07-30", restore: null },
-  { kind: "undo", date: "2026-07-30", restore: "medium" },
+  { kind: "undo", date: "2026-07-30", restore: null, stored: "long" },
+  { kind: "undo", date: "2026-07-30", restore: "medium", stored: "long" },
   { kind: "yesterday", date: "2026-07-29" },
   { kind: "checkin", date: "2026-07-30" },
   { kind: "move", slug: "tik" },
@@ -50,8 +50,28 @@ describe("callback encoding", () => {
   });
 
   test("an undo payload with no displaced tier decodes to null, not to a string", () => {
-    const decoded = decode(encode({ kind: "undo", date: "2026-07-30", restore: null }));
-    expect(decoded).toEqual({ kind: "undo", date: "2026-07-30", restore: null });
+    const decoded = decode(encode({ kind: "undo", date: "2026-07-30", restore: null, stored: "long" }));
+    expect(decoded).toEqual({ kind: "undo", date: "2026-07-30", restore: null, stored: "long" });
+  });
+
+  // The undo payload carries BOTH tiers: the one its own log displaced (what to
+  // put back) and the one that log stored (what the day must still hold for the
+  // undo to be the right one to apply). Without the second, a confirmation left
+  // in the chat stays a live control over a day that has since been logged
+  // again, and tapping it reverts somebody's newer entry. db/days.ts refuses on
+  // the mismatch; this is the half that gets the tier there.
+  test("an undo payload carries the tier its log stored, not only the displaced one", () => {
+    const decoded = decode(encode({ kind: "undo", date: "2026-07-30", restore: "short", stored: "long" }));
+    expect(decoded).toEqual({ kind: "undo", date: "2026-07-30", restore: "short", stored: "long" });
+  });
+
+  test("an undo payload missing the stored tier is rejected", () => {
+    expect(decode("undo:2026-07-30:short")).toBeNull();
+    expect(decode("undo:2026-07-30:none")).toBeNull();
+  });
+
+  test("an undo payload whose stored tier is not one of the four is rejected", () => {
+    expect(decode("undo:2026-07-30:short:enormous")).toBeNull();
   });
 
   // Offering the check-in again after an undo is a different intent from
@@ -144,7 +164,9 @@ describe("decode rejects anything it would not itself have encoded", () => {
       "yesterday:2026-07-29:extra",
       "checkin:2026-07-30:extra",
       "log:2026-07-30:short:extra",
-      "undo:2026-07-30:medium:extra",
+      // Undo is the one kind with three parts of its own, so its trailing
+      // segment is the fifth rather than the fourth.
+      "undo:2026-07-30:medium:long:extra",
     ]) {
       expect(decode(bad)).toBeNull();
     }

@@ -5,19 +5,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun test                          # full suite (251 tests); DB tests need db-test running
+bun test                          # full suite (264 tests); DB tests need db-test running
 bun run test:db                   # starts the disposable db-test container, then bun test
 bun test tests/domain             # one directory
 bun test tests/db/standings.test.ts   # one file
 bun test -t "divides by the full roster"   # one test by name
 bunx tsc --noEmit                 # typecheck; there is no linter, this is the static check
-bun run start                     # run the bot locally (needs BOT_TOKEN and DATABASE_URL)
-docker compose up -d --build      # bot + db
+docker compose up -d --build      # bot + db; this is how you run it
 docker compose logs -f bot
 ```
 
 `bun test` alone fails on `tests/db/*` unless the `db-test` service is up. Bun auto-loads `.env`,
 so `TEST_DATABASE_URL` is picked up from there.
+
+**`bun run start` does not work against the shipped `.env`,** which is why it is not in the list
+above. `DATABASE_URL` there is `postgres://bot:...@db:5432/bot`, the Compose network hostname,
+which does not resolve from the host: the bot sits in `waitForDatabase`'s 30-second retry loop and
+then throws. Run it through Compose, or override the variable for the one command
+(`DATABASE_URL=postgres://bot:<pw>@localhost:5432/bot bun run src/main.ts`) after uncommenting the
+`db` service's loopback port mapping in `docker-compose.yml`.
 
 **Never run the `test` compose profile on a self-hosted production host.** `db-test` binds a host
 port and uses a throwaway password.
@@ -112,7 +118,25 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
 - **Callback payloads are untrusted and can be stale.** A check-in message stays live for days, so
   handlers recompute `today`/`yesterday` from the live calendar and refuse a payload date that is
   neither. `decode()` returns null for anything malformed. Keep payloads under Telegram's 64-byte
-  limit.
+  limit (the longest, an undo, is 29).
+- **Staleness applies to the payload's tier, not only its date.** The undo payload carries both the
+  tier its log displaced (`restore`, what to put back) and the tier that log stored (`stored`, the
+  guard), and `undoDay` matches on `stored` in the WHERE clause of both statements. Two
+  confirmations for the same day can be live at once, one from the daily reminder and one from a
+  later `/log` that corrected the tier, and applying the older payload unconditionally reverted the
+  newer entry: it deleted the day outright when its `restore` was null, while the toast said "Put
+  back". `undoDay` returns whether it applied and the handler shows `UNDO_SUPERSEDED` when it did
+  not, so the bot never reports a change it did not make. The check is in SQL rather than a read
+  followed by a write, so there is no window between them. It is also an `UPDATE`, not the upsert it
+  used to be: `ON CONFLICT` would resurrect a day someone had already undone elsewhere.
+- **The confirmation's progress block names the week the logged day falls in, not always "This
+  week".** FR-10's backdate writes to yesterday, and on a Monday yesterday is Sunday, which belongs
+  to the week that just ended, so `weekMinutes` returns last week's total. Labelling it "This week"
+  printed a filled bar and "Target hit" for a week the user had logged nothing in, hours after the
+  Monday post told their guild chat everyone was back to zero (FR-20). `checkin.ts` compares
+  `weekStartOf(callback.date)` against `calendar().weekStart`, both from SQL, and passes a
+  `LoggedWeek` to `render.ts`. The two labels are the same width on purpose: they sit in a
+  fixed column inside a `<pre>`, so a longer one steps the numbers off the bar.
 - **Every button carries its full meaning; the process holds no session state** (NFR-5). No session
   middleware, no in-memory maps. A tap on a message sent before a restart must still work.
 - **Escape only interpolated values with `escapeHtml`, never a whole message.** Templates contain
@@ -177,9 +201,12 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
   cache first. `tests/db/tiers.test.ts` pins this against a genuinely cold client and fails without
   the fix.
 - **Size ceiling: 2,000 effective lines.** Passing it means something from SPEC.md §8 crept back in
-  (NFR-6). `src/` is currently 1,920 effective lines. Phase 4 spent 4 of the 84 that remained after
-  Phase 3, because its work was tests and documents rather than application logic, and because FR-11
-  was cut. SPEC.md §7's per-phase split was a rounded residual, not a costed estimate; the note added
+  (NFR-6). `src/` is currently 1,958 effective lines, so **42 remain**. Phase 4 spent 4 of the 84
+  that remained after Phase 3, because its work was tests and documents rather than application
+  logic, and because FR-11 was cut; the pre-smoke bugfix pass spent 38 more on the FR-9 undo guard
+  and the FR-12 week label. There is no longer room for a feature here, only for fixes, and the next
+  change that needs more than 42 lines is a conversation about the ceiling rather than a quiet
+  overrun. SPEC.md §7's per-phase split was a rounded residual, not a costed estimate; the note added
   there records this so the conflict is not rediscovered. Count it the same way each time or the
   trend is meaningless:
 

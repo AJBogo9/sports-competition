@@ -4,28 +4,65 @@ import { escapeHtml } from "../html.ts";
 import type { Tier } from "../config.ts";
 import type { GuildStanding, Neighbour } from "../db/standings.ts";
 
-/** FR-12. Monospace so the bar and the numbers line up on a narrow phone. */
-export function progressBlock(minutes: number, target: number): string {
+/**
+ * Which week a progress block is about.
+ *
+ * Not always the current one. FR-10's backdate writes to yesterday, and on a
+ * Monday yesterday is Sunday, which belongs to the week that just ended. The
+ * minutes that come back are then last week's, and labelling them "This week"
+ * printed a filled bar and "Target hit" for a week the user had logged nothing
+ * in, hours after the Monday post told their guild chat that everyone was back
+ * to zero (FR-20). Every other day of the week, yesterday and today share a
+ * week and this is "current".
+ *
+ * Two values rather than a week-start string: the renderer needs to know which
+ * of two labels to print, not which Monday it is, and keeping the date
+ * comparison in the caller keeps both week starts coming from SQL (design 4.2).
+ */
+export type LoggedWeek = "current" | "previous";
+
+/**
+ * FR-12. Monospace so the bar and the numbers line up on a narrow phone.
+ *
+ * "This week" and "Last week" are deliberately the same width. The label sits
+ * in a fixed column ahead of the minutes inside a <pre>, so a longer one would
+ * step the numbers out of line with the bar underneath.
+ */
+export function progressBlock(
+  minutes: number,
+  target: number,
+  week: LoggedWeek = "current",
+): string {
+  const label = week === "previous" ? "Last week" : "This week";
   return (
-    `<pre>This week   ${minutes} / ${target} min\n` +
+    `<pre>${label}   ${minutes} / ${target} min\n` +
     `            ${progressBar(minutes, target)}</pre>`
   );
 }
 
-function tail(minutes: number, target: number): string {
+function tail(minutes: number, target: number, week: LoggedWeek): string {
   const left = target - minutes;
   if (left <= 0) return "Target hit.";
+  // A week that has already ended has nothing left to act on, so both nudges
+  // below would be asking for a session that cannot count toward the number
+  // printed above it.
+  if (week === "previous") return "That week is closed.";
   // 45 is the medium tier's value, from the design mockup at prototype/bot-flows.html:1009
   if (left <= 45) return "One more session does it.";
   return `${left} minutes to go.`;
 }
 
 /** FR-12. Every confirmation shows progress against the weekly target. */
-export function confirmation(tier: Tier, minutes: number, target: number): string {
+export function confirmation(
+  tier: Tier,
+  minutes: number,
+  target: number,
+  week: LoggedWeek = "current",
+): string {
   const head = tier === "rest"
     ? "Noted. Rest days don't break anything."
     : `<b>${tierMinutes(tier)} min.</b> Good.`;
-  return `${head}\n\n${progressBlock(minutes, target)}\n${tail(minutes, target)}`;
+  return `${head}\n\n${progressBlock(minutes, target, week)}\n${tail(minutes, target, week)}`;
 }
 
 function ordinal(n: number): string {

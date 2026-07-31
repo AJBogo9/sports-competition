@@ -71,8 +71,8 @@ describe("logDay", () => {
 
 describe("undoDay (FR-9)", () => {
   test("removes the day entirely when nothing was displaced", async () => {
-    await logDay(sql, ANDREAS, "2026-07-28", "medium");
-    await undoDay(sql, ANDREAS, "2026-07-28", null);
+    const { stored } = await logDay(sql, ANDREAS, "2026-07-28", "medium");
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: null })).toBe(true);
     expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBeNull();
     expect(await weekMinutes(sql, ANDREAS, WEEK)).toBe(0);
   });
@@ -83,23 +83,67 @@ describe("undoDay (FR-9)", () => {
     await logDay(sql, ANDREAS, "2026-07-28", "medium");
     const before = await weekMinutes(sql, ANDREAS, WEEK);
 
-    const { displaced } = await logDay(sql, ANDREAS, "2026-07-28", "long");
-    await undoDay(sql, ANDREAS, "2026-07-28", displaced);
+    const { stored, displaced } = await logDay(sql, ANDREAS, "2026-07-28", "long");
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: displaced })).toBe(true);
 
     expect(await weekMinutes(sql, ANDREAS, WEEK)).toBe(before);
     expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBe("medium");
   });
 
   test("undoing a day that is already gone is harmless", async () => {
-    await undoDay(sql, ANDREAS, "2026-07-28", null);
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: "medium", restore: null })).toBe(false);
     expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBeNull();
   });
 
   test("leaves other days untouched", async () => {
     await logDay(sql, ANDREAS, "2026-07-28", "long");
-    await logDay(sql, ANDREAS, "2026-07-29", "long");
-    await undoDay(sql, ANDREAS, "2026-07-29", null);
+    const { stored } = await logDay(sql, ANDREAS, "2026-07-29", "long");
+    await undoDay(sql, ANDREAS, "2026-07-29", { expected: stored, restore: null });
     expect(await weekMinutes(sql, ANDREAS, WEEK)).toBe(75);
+  });
+
+  // A confirmation message stays live for days and its Undo button never
+  // expires (NFR-5), so two confirmations for the same day can both be sitting
+  // in the chat: one from the daily reminder, one from a later /log that
+  // corrected the tier. Tapping the older one used to apply its own stale
+  // payload unconditionally, reverting an entry it knew nothing about. The date
+  // was already rechecked against the live calendar; the tier was not.
+  test("refuses to delete a day that has been logged again since", async () => {
+    const { stored } = await logDay(sql, ANDREAS, "2026-07-28", "medium");
+    await logDay(sql, ANDREAS, "2026-07-28", "long");
+
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: null })).toBe(false);
+    expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBe("long");
+    expect(await weekMinutes(sql, ANDREAS, WEEK)).toBe(75);
+  });
+
+  test("refuses to restore over a day that has been logged again since", async () => {
+    await logDay(sql, ANDREAS, "2026-07-28", "short");
+    const { stored, displaced } = await logDay(sql, ANDREAS, "2026-07-28", "medium");
+    await logDay(sql, ANDREAS, "2026-07-28", "long");
+
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: displaced })).toBe(false);
+    expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBe("long");
+  });
+
+  // The guard is the day's tier, not a version counter, so re-logging the same
+  // tier leaves the older undo applicable. That is the right answer: the day
+  // holds exactly what that undo expects, so putting the displaced tier back
+  // restores exactly the total it promises.
+  test("still applies when the day was re-logged at the same tier", async () => {
+    await logDay(sql, ANDREAS, "2026-07-28", "short");
+    const { stored, displaced } = await logDay(sql, ANDREAS, "2026-07-28", "long");
+    await logDay(sql, ANDREAS, "2026-07-28", "long");
+
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: displaced })).toBe(true);
+    expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBe("short");
+  });
+
+  test("a second tap on the same undo changes nothing further", async () => {
+    const { stored, displaced } = await logDay(sql, ANDREAS, "2026-07-28", "medium");
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: displaced })).toBe(true);
+    expect(await undoDay(sql, ANDREAS, "2026-07-28", { expected: stored, restore: displaced })).toBe(false);
+    expect(await dayTier(sql, ANDREAS, "2026-07-28")).toBeNull();
   });
 });
 

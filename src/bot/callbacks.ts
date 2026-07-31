@@ -6,7 +6,7 @@ import type { Tier } from "../config.ts";
  * restart still works and the process holds no session state (NFR-5).
  *
  * Telegram rejects callback_data over 64 bytes. The longest payload here is an
- * undo carrying a date and a displaced tier, at 22 bytes.
+ * undo carrying a date and two tiers, at 29 bytes.
  */
 export type Callback =
   | { kind: "guild"; slug: string }
@@ -18,7 +18,22 @@ export type Callback =
   /** FR-22. "Keep them" on the follow-up: resume without re-choosing an hour. */
   | { kind: "keep" }
   | { kind: "log"; date: string; tier: Tier }
-  | { kind: "undo"; date: string; restore: Tier | null }
+  /**
+   * FR-9. Two tiers, and both are load-bearing.
+   *
+   * `restore` is what this log displaced, so undo puts back the exact prior
+   * weekly total rather than merely deleting the day (design 4.5).
+   *
+   * `stored` is what this log wrote, and it is the guard. A confirmation stays
+   * in the chat with a live Undo button indefinitely (NFR-5), so two
+   * confirmations for the same day can coexist: one from the daily reminder,
+   * one from a later /log that corrected the tier. Without `stored`, tapping
+   * the older one applied its stale `restore` unconditionally and reverted the
+   * newer entry. db/days.ts refuses when the day no longer holds this tier.
+   * The date was always rechecked against the live calendar; this closes the
+   * same hole on the tier.
+   */
+  | { kind: "undo"; date: string; restore: Tier | null; stored: Tier }
   | { kind: "yesterday"; date: string }
   | { kind: "checkin"; date: string }
   | { kind: "move"; slug: string }
@@ -37,7 +52,7 @@ export function encode(callback: Callback): string {
     case "remind":    return `remind:${callback.hour ?? "off"}`;
     case "keep":      return "keep";
     case "log":       return `log:${callback.date}:${callback.tier}`;
-    case "undo":      return `undo:${callback.date}:${callback.restore ?? "none"}`;
+    case "undo":      return `undo:${callback.date}:${callback.restore ?? "none"}:${callback.stored}`;
     case "yesterday": return `yesterday:${callback.date}`;
     case "checkin":   return `checkin:${callback.date}`;
     case "move":      return `move:${callback.slug}`;
@@ -70,7 +85,10 @@ export function decode(data: string): Callback | null {
 }
 
 function parse(data: string): Callback | null {
-  const [kind, first, second] = data.split(":");
+  // Undo is the only kind with three parts of its own. Everything past the
+  // parts a kind actually uses is caught by decode()'s re-encode assertion
+  // rather than by a per-kind length check.
+  const [kind, first, second, third] = data.split(":");
 
   switch (kind) {
     case "stay":
@@ -113,9 +131,14 @@ function parse(data: string): Callback | null {
       return { kind: "log", date: first, tier: second };
 
     case "undo": {
-      if (!first || !DATE.test(first) || !second) return null;
-      if (second === "none") return { kind: "undo", date: first, restore: null };
-      return isTier(second) ? { kind: "undo", date: first, restore: second } : null;
+      // `third` is required, so a payload from the build before undo carried
+      // the stored tier decodes to null rather than to a half-populated undo.
+      // Nothing is deployed, so there are none in circulation; a bot upgraded
+      // mid-session simply has its older Undo buttons answered and ignored by
+      // index.ts's catch-all rather than acting on a payload it cannot check.
+      if (!first || !DATE.test(first) || !second || !third || !isTier(third)) return null;
+      if (second === "none") return { kind: "undo", date: first, restore: null, stored: third };
+      return isTier(second) ? { kind: "undo", date: first, restore: second, stored: third } : null;
     }
 
     default:

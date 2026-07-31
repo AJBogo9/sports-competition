@@ -39,6 +39,17 @@ contain today. Nothing here is done until every box is ticked.
       permitted rather than as a failure (FR-8)
 - [ ] `Log yesterday instead` writes to yesterday, and logging yesterday twice
       replaces rather than adds (FR-10, FR-7)
+- [ ] **On a Monday**, log something during the previous week (or run this on a
+      Monday after a session that did), then use `Log yesterday instead` to log
+      Sunday. The progress block must be headed **`Last week`**, not `This week`,
+      and must not offer a forward-looking nudge ("83 minutes to go", "One more
+      session does it") for a week that is over. Sunday belongs to the week that
+      just ended, so the total that comes back is last week's, and calling it
+      "This week" contradicts the Monday post that told the guild chat everyone
+      was back to zero a few hours earlier (FR-20). Confirm the same backdate on
+      any other weekday still reads `This week`, since yesterday and today share
+      a week then. This is the only check here that needs a specific weekday: the
+      week boundary comes from the SQL clock and cannot be faked from the client
 - [ ] Log yesterday via "Log yesterday instead", tap Undo, then tap
       "Log again", and confirm the prompt says "And yesterday?" rather than
       "Moved today?" before tapping a tier. Confirm the resulting entry lands
@@ -46,6 +57,18 @@ contain today. Nothing here is done until every box is ticked.
 - [ ] Log a day, re-log the same day at a different tier, then tap Undo, and
       confirm the message says the entry was put back (not removed) and that
       the weekly total matches what it was before the second log
+- [ ] Send `/log` twice so there are two check-in messages for today. Log
+      `15 to 30` on the first, then `60+` on the second, so both are now
+      confirmations for the same day carrying their own Undo. Scroll back and
+      tap Undo on the **first**. It must refuse, saying the day has been logged
+      again and that nothing was changed, and `/me` must still show the 75
+      minutes from the second log. Applying that stale payload would delete the
+      day outright, which is the entry the user actually meant to keep. The date
+      on a callback has always been rechecked against the live calendar; this is
+      the same check on the tier
+- [ ] Then tap Undo on the **second** confirmation, the current one, and confirm
+      it still works normally and puts the day back to `15 to 30`. The guard must
+      refuse only the superseded button, not every button after a re-log
 - [ ] Send `/log` on day N, leave the message untapped overnight, then on day
       N+1 tap a tier on it. Confirm the write lands on day N, the day the
       prompt named, and not on day N+1, the day you tapped. This step and the

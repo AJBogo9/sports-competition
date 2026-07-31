@@ -203,6 +203,16 @@ export const UNDO_DONE = "Removed.";
  * chosen rather than asked; easy to reword since all copy lives here.
  */
 export const UNDO_RESTORED = "Put back.";
+/**
+ * FR-9. The undo refused because the day no longer holds what this message's
+ * log put there: it was logged again from a newer check-in, or already undone.
+ *
+ * Its own message rather than a silent no-op. The tap has to produce something,
+ * and the two things the user needs to know are that nothing changed and that
+ * the day is not in the state this message describes.
+ */
+export const UNDO_SUPERSEDED =
+  "That day has been logged again since this message, so there is nothing here to undo. Nothing was changed. Send /log to see where you are.";
 export const OUTSIDE_WINDOW =
   "That date is outside the competition, so it wouldn't count. Nothing was saved.";
 /**

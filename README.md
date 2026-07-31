@@ -114,8 +114,8 @@ database.
 - **Bot only, long polling.** No web app, no domain, no TLS, no inbound ports. It runs on a home
   server or a small VPS.
 
-Roughly 1,300 lines of logic, two containers, one machine. See [SPEC.md](SPEC.md) NFR-6 for the
-breakdown.
+Roughly 1,950 lines of logic, two containers, one machine. See [SPEC.md](SPEC.md) NFR-6 for the
+2,000-line ceiling and the note recording why its original 1,300 estimate was low.
 
 ## Relationship to the earlier bot
 

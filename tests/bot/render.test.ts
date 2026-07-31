@@ -23,6 +23,26 @@ describe("progressBlock (FR-12)", () => {
   test("the acceptance example reads 112 of 150", () => {
     expect(progressBlock(67 + 45, 150)).toContain("112 / 150 min");
   });
+
+  // FR-10 plus FR-16. On a Monday, "Log yesterday instead" writes to Sunday,
+  // which belongs to the week that just ended, so the total that comes back is
+  // last week's. Labelling it "This week" printed a filled bar for a week the
+  // user had logged nothing in, hours after the Monday post told their guild
+  // chat that everyone was back to zero.
+  test("names the previous week when the entry landed there", () => {
+    const block = progressBlock(195, 150, "previous");
+    expect(block).toContain("Last week");
+    expect(block).not.toContain("This week");
+  });
+
+  // The label sits in a fixed-width column ahead of the minutes, inside a
+  // <pre>, so the two labels have to be the same width or the numbers step.
+  test("both labels are the same width, so the columns still line up", () => {
+    const current = progressBlock(112, 150).split("\n");
+    const previous = progressBlock(112, 150, "previous").split("\n");
+    expect(previous[0]!.length).toBe(current[0]!.length);
+    expect(previous[1]).toBe(current[1]!);
+  });
 });
 
 describe("confirmation (FR-12)", () => {
@@ -56,6 +76,29 @@ describe("confirmation (FR-12)", () => {
 
   test("contains no dash characters, per the project copy rule", () => {
     expect(confirmation("medium", 112, 150)).not.toMatch(/[—–]/);
+  });
+
+  // FR-10. A Monday backdate lands in the week that just ended. The block has
+  // to say so, and the forward-looking nudges have to stop: "83 minutes to go"
+  // asks for a session that can no longer count toward that week.
+  test("a backdated entry in the previous week says so rather than claiming this one", () => {
+    const message = confirmation("long", 195, 150, "previous");
+    expect(message).toContain("Last week");
+    expect(message).not.toContain("This week");
+  });
+
+  test("does not ask for more minutes in a week that is already over", () => {
+    const message = confirmation("short", 67, 150, "previous");
+    expect(message).not.toContain("minutes to go");
+    expect(message).not.toContain("One more session");
+  });
+
+  test("still congratulates a previous week that met the target", () => {
+    expect(confirmation("long", 150, 150, "previous")).toContain("Target hit");
+  });
+
+  test("the previous-week copy carries no dashes either", () => {
+    expect(confirmation("short", 67, 150, "previous")).not.toMatch(/[—–]/);
   });
 });
 

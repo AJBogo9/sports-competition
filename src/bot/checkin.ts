@@ -5,7 +5,7 @@ import { calendar, weekStartOf } from "../db/calendar.ts";
 import { logDay, undoDay, weekMinutes } from "../db/days.ts";
 import { findUser } from "../db/users.ts";
 import { isInWindow } from "../domain/scoring.ts";
-import { confirmation, progressBlock } from "./render.ts";
+import { confirmation, progressBlock, type LoggedWeek } from "./render.ts";
 import { decode, encode } from "./callbacks.ts";
 import {
   BUTTON_LOG_AGAIN,
@@ -24,6 +24,7 @@ import {
   TOAST_REMOVED,
   UNDO_DONE,
   UNDO_RESTORED,
+  UNDO_SUPERSEDED,
 } from "../strings.ts";
 
 /**
@@ -69,12 +70,26 @@ export function checkInMessage(today: string, yesterday: string): CheckIn {
 }
 
 /** The undo button carries the tier this log displaced, so FR-9 can put it
- *  back rather than merely deleting the day. See design 4.5. */
-function afterLogKeyboard(date: string, displaced: Tier | null): InlineKeyboard {
+ *  back rather than merely deleting the day (design 4.5), and the tier it
+ *  stored, so a tap on a superseded confirmation is refused rather than
+ *  reverting a newer entry. See the Callback type and db/days.ts. */
+function afterLogKeyboard(date: string, stored: Tier, displaced: Tier | null): InlineKeyboard {
   return new InlineKeyboard()
-    .text(BUTTON_UNDO, encode({ kind: "undo", date, restore: displaced }))
+    .text(BUTTON_UNDO, encode({ kind: "undo", date, restore: displaced, stored }))
     .text(BUTTON_ME, encode({ kind: "me" }))
     .text(BUTTON_STANDINGS, encode({ kind: "standings" }));
+}
+
+/**
+ * FR-12. Which week the progress block under a confirmation is about.
+ *
+ * FR-10's backdate writes to yesterday, and on a Monday yesterday is Sunday,
+ * so the minutes read back are the previous week's. Both week starts come from
+ * SQL, weekStartOf for the logged day and calendar for now, so no JavaScript
+ * date arithmetic decides this (design 4.2).
+ */
+function loggedWeek(loggedWeekStart: string, currentWeekStart: string): LoggedWeek {
+  return loggedWeekStart === currentWeekStart ? "current" : "previous";
 }
 
 /** FR-6. The same check-in message, on demand. Also reused after registration. */
@@ -164,7 +179,7 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       // day N+3 must not be allowed to write three days back just because
       // the payload still names that date, so today and yesterday are
       // recomputed against the live calendar and anything else is refused.
-      const { today, yesterday } = await calendar(sql);
+      const { today, yesterday, weekStart: currentWeek } = await calendar(sql);
       if (
         !isInWindow(callback.date) ||
         callback.date > today ||
@@ -180,16 +195,21 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
         return;
       }
 
-      const { displaced } = await logDay(sql, from.id, callback.date, callback.tier);
+      const { stored, displaced } = await logDay(sql, from.id, callback.date, callback.tier);
       await ctx.answerCallbackQuery(TOAST_LOGGED);
 
       const weekStart = await weekStartOf(sql, callback.date);
       const minutes = await weekMinutes(sql, from.id, weekStart);
       await ctx.editMessageText(
-        confirmation(callback.tier, minutes, WEEKLY_TARGET_MINUTES),
+        confirmation(
+          callback.tier,
+          minutes,
+          WEEKLY_TARGET_MINUTES,
+          loggedWeek(weekStart, currentWeek),
+        ),
         {
           parse_mode: "HTML",
-          reply_markup: afterLogKeyboard(callback.date, displaced),
+          reply_markup: afterLogKeyboard(callback.date, stored, displaced),
         },
       );
       return;
@@ -209,7 +229,7 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       // a stale date a persisted message still carries, even though the
       // official client never offers an undo button for a date it wouldn't
       // have let you log.
-      const { today, yesterday } = await calendar(sql);
+      const { today, yesterday, weekStart: currentWeek } = await calendar(sql);
       if (
         !isInWindow(callback.date) ||
         callback.date > today ||
@@ -223,7 +243,22 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
 
       // FR-9. Restores the displaced tier when the log overwrote one, so the
       // exact prior weekly total comes back rather than merely vanishing.
-      await undoDay(sql, from.id, callback.date, callback.restore);
+      //
+      // Refuses when the day no longer holds what this message's log stored:
+      // a second confirmation for the same day can be live in the chat, and
+      // applying this one's payload over it would revert an entry it knows
+      // nothing about. The guard is in the SQL, so there is no read-then-write
+      // window. See undoDay.
+      const applied = await undoDay(sql, from.id, callback.date, {
+        expected: callback.stored,
+        restore: callback.restore,
+      });
+      if (!applied) {
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(UNDO_SUPERSEDED);
+        return;
+      }
+
       const restored = callback.restore !== null;
       await ctx.answerCallbackQuery(restored ? TOAST_PUT_BACK : TOAST_REMOVED);
 
@@ -234,7 +269,7 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       // progress block.
       const message = restored ? UNDO_RESTORED : UNDO_DONE;
       await ctx.editMessageText(
-        `${message}\n\n${progressBlock(minutes, WEEKLY_TARGET_MINUTES)}`,
+        `${message}\n\n${progressBlock(minutes, WEEKLY_TARGET_MINUTES, loggedWeek(weekStart, currentWeek))}`,
         {
           parse_mode: "HTML",
           reply_markup: new InlineKeyboard()
