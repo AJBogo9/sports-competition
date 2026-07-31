@@ -245,8 +245,11 @@ describe("restore fidelity, plain SQL format (scripts/dump.sh)", () => {
     // carries rows: a dump that lost them would restore into an empty database and
     // satisfy the deep equality below for entirely the wrong reason. FR-7 semantics
     // (same-date tier replacement creates one row, not two) must survive the dump.
+    // The terminator is anchored (^\.$ in multiline mode) rather than split on "\n\."
+    // because when the table is empty, the terminator is the first line of copyBody
+    // with no preceding newline, which is exactly the case this assertion exists to catch.
     const copyBody = dump.split(/^COPY public\.days [^\n]*\n/m)[1] ?? "";
-    const dumpedDays = copyBody.split("\n\\.")[0]?.split("\n").filter((line) => line !== "") ?? [];
+    const dumpedDays = copyBody.split(/^\\.$/m)[0]?.split("\n").filter((line) => line !== "") ?? [];
     expect(dumpedDays).toHaveLength(6);
 
     await createDatabase(TARGET_DB);
