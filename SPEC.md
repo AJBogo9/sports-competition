@@ -468,10 +468,11 @@ registration that their first name and activity are visible to other participant
 no domain, no TLS certificate, no inbound ports.
 
 **NFR-2. Deployment.** The bot MUST run as a single long-polling process with its state in
-PostgreSQL. *Updated 2026-07-31:* it is deployed onto Tietokilta's existing infrastructure, as a
-NixOS service on `tikpannu` beside the guild's other Telegram bots, with its database on the shared
-Azure PostgreSQL flexible server. The two-container Docker Compose setup in this repository is the
-development and test path, not the deployment.
+PostgreSQL. *Updated 2026-07-31:* the intended deployment is Tietokilta's existing infrastructure,
+as a NixOS service on `tikpannu` beside the guild's other Telegram bots, with its database on the
+shared Azure PostgreSQL flexible server. **That deployment has not been carried out yet.** The
+two-container Docker Compose setup in this repository is the development and test path, and is not
+the deployment.
 
 The original sizing stands for anyone self-hosting instead: two containers on one machine, **1 vCPU,
 2 GB RAM, 20 GB disk**, roughly €3.50 to €6 per month on a small VPS, or zero on an existing home
