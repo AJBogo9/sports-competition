@@ -5,6 +5,8 @@ export interface Calendar {
   today: string;
   yesterday: string;
   weekStart: string;
+  /** The hour 0 to 23 in TIMEZONE. FR-20's post fires against this, never UTC. */
+  hour: number;
 }
 
 /**
@@ -23,15 +25,23 @@ export interface Calendar {
  * now() exactly as before.
  */
 export async function calendar(sql: Sql, at: string | null = null): Promise<Calendar> {
-  const [row] = await sql<{ today: string; yesterday: string; week_start: string }[]>`
+  const [row] = await sql<
+    { today: string; yesterday: string; week_start: string; hour: number }[]
+  >`
     WITH local AS (SELECT (COALESCE(${at}::timestamptz, now()) AT TIME ZONE ${TIMEZONE}) AS ts)
     SELECT (ts)::date::text                              AS today,
            (ts::date - INTERVAL '1 day')::date::text     AS yesterday,
-           date_trunc('week', ts)::date::text            AS week_start
+           date_trunc('week', ts)::date::text            AS week_start,
+           EXTRACT(HOUR FROM ts)::int                    AS hour
     FROM local
   `;
   if (!row) throw new Error("calendar query returned no row");
-  return { today: row.today, yesterday: row.yesterday, weekStart: row.week_start };
+  return {
+    today: row.today,
+    yesterday: row.yesterday,
+    weekStart: row.week_start,
+    hour: row.hour,
+  };
 }
 
 /** The Monday that starts the week containing the given yyyy-mm-dd date. */
