@@ -12,6 +12,7 @@ import {
   shouldPostMonday,
 } from "../domain/scheduling.ts";
 import { mondayPost, pinnedStandings } from "./render.ts";
+import { sendDueReminders } from "./reminders.ts";
 
 const TICK_MS = 60_000;
 const PIN_REFRESH_MS = 15 * 60_000;
@@ -274,7 +275,7 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
     }
     running = true;
     try {
-      const { today, weekStart, hour } = await calendar(sql);
+      const { today, yesterday, weekStart, hour } = await calendar(sql);
 
       // Phase 2 design 4.7 and 4.8. The two halves of this loop stop at
       // DIFFERENT dates, and keeping them apart is the whole point of this
@@ -309,6 +310,28 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
       // process state NFR-5 exists to avoid.
       const inWindow = isInWindow(today);
       if (!inWindow && !previousWeekInCompetition({ weekStart })) return;
+
+      // FR-21. Placement is load-bearing and wrong in two different ways if
+      // moved (phase 3 design 4.5).
+      //
+      // It sits INSIDE the window gate above, so reminders stop with the
+      // competition rather than asking people for a week afterwards to log
+      // days FR-26 refuses to store.
+      //
+      // It sits OUTSIDE the refreshPins branch below, which runs every 15
+      // minutes. Nested there, a reminder would land on a quarter-hour lattice
+      // and a user whose window opened at 20:01 would wait until 20:15.
+      //
+      // Guarded separately from the per-chat loop: a failing reminder pass
+      // must not cost every guild chat its pin refresh and Monday post. The batch's
+      // own per-user isolation is inside sendDueReminders.
+      if (inWindow) {
+        try {
+          await sendDueReminders(bot, sql, today, yesterday);
+        } catch (error) {
+          console.error("reminder pass failed", error);
+        }
+      }
 
       const chats = await listChats(sql);
       const refreshPins = inWindow && Date.now() - lastPinRefresh >= PIN_REFRESH_MS;
