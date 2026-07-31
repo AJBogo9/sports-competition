@@ -29,10 +29,14 @@ uses a throwaway password.
   rejected alternatives (Mini App, MET-based scoring, individual leaderboard). Re-adding one is a
   defect, so read §8 before adding anything that looks obviously missing. §10 is the build order.
 - [docs/superpowers/specs/2026-07-30-telegram-bot-phase-1-design.md](docs/superpowers/specs/2026-07-30-telegram-bot-phase-1-design.md)
-  resolves what SPEC.md leaves open. Comments cite it as "design 4.x".
-- [.superpowers/sdd/2026-07-30-telegram-bot-phase-1/progress.md](.superpowers/sdd/2026-07-30-telegram-bot-phase-1/progress.md)
-  is the build ledger: every finding, ruling and deferred item. `HANDOVER.md` beside it is the
-  current state summary.
+  resolves what SPEC.md leaves open for Phase 1. Comments cite it as "design 4.x".
+  [The Phase 2 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-2-design.md) does the
+  same for the group chat, and its comments cite it as "phase 2 design N.N".
+- `.superpowers/sdd/<date>-telegram-bot-phase-<n>/progress.md` is the per-phase build ledger: every
+  finding, ruling and deferred item, in order. `HANDOVER.md` beside it is the state summary.
+  **These are local-only.** `.superpowers/sdd/.gitignore` contains `*`, so they are not in the
+  repository and a fresh clone will not have them. They are listed here because they are the most
+  useful context on the machine that has them, not because you can expect to find them.
 - [docs/SMOKE.md](docs/SMOKE.md) is the manual checklist. It is the *only* acceptance basis for
   the Telegram-facing files that have no automated tests by design: `registration.ts`,
   `checkin.ts`, `reports.ts`, `group.ts`, and the Telegram calls inside `ticker.ts`.
@@ -48,8 +52,10 @@ config.ts -> domain/ (pure) -> db/ (SQL) -> bot/handlers -> bot/render.ts (pure)
 ```
 
 - `src/config.ts` is the only place guilds, member counts, competition dates, tier minutes, the
-  weekly target and the timezone exist (FR-25). Changing a value there and restarting recomputes
-  all history, because nothing derived from it is stored.
+  weekly target and the timezone exist (FR-25). Changing a value there recomputes all history,
+  because nothing derived from it is stored. **In Docker that means `docker compose up -d --build`,
+  not `docker compose restart bot`:** the Dockerfile does `COPY src ./src` and nothing bind-mounts
+  `src`, so a plain restart silently runs the old config.
 - `src/domain/scoring.ts` holds only the genuinely pure parts: tier minutes, the progress bar,
   window membership, the streak reduction, competition ranking. `src/domain/scheduling.ts` holds
   the Monday-post decision (FR-20), pure for the same reason: testable without Telegram or a
@@ -83,6 +89,12 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
   (design 4.2). The competition window straddles a clock change. The one deliberate exception is
   `previousWeek()` in `domain/scoring.ts`, which does UTC-midnight label arithmetic with no
   timezone conversion at all; its comment explains why that is safe.
+- **`blocked` gates outbound messaging and never scoring.** There is no `NOT u.blocked` anywhere in
+  `standings.ts`, and restoring one from the query printed in SPEC.md §6 is a defect. Because no
+  total is stored, the clause is retroactive: the first user who blocks the bot would erase their
+  whole season from their guild's total and the pinned message would publish the drop. Three tests
+  in `tests/db/standings.test.ts` guard it, one per query, and they pass trivially until someone
+  re-adds the clause.
 - **Every `BIGINT` and `DATE` is selected as `::text`.** postgres.js returns BIGINT as a JS string
   and DATE as a `Date` at UTC midnight. Selecting them raw corrupts Telegram IDs and shifts dates.
 - **Every per-member division casts `::numeric` before dividing, then `::float8`.** Postgres
@@ -115,9 +127,21 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
 - **The pinned message is edited and never resent, and the edit is skipped when the rendered text
   is unchanged.** Resending would notify a whole guild every 15 minutes, which is the opposite of
   FR-19.
+- **The ticker's two halves stop on different dates, and the pin's gate must stay the tighter one.**
+  The pin refresh stops at `COMPETITION_END`; the Monday post runs one week past it to deliver the
+  final week's result (phase 2 design 4.8). Outside the window `standings(weekStart, today)` is an
+  all-zero table, so relaxing the pin's gate to match the post's would overwrite the frozen final
+  standings with zeroes in every guild chat.
 - **Size ceiling: 2,000 effective lines.** Passing it means something from SPEC.md §8 crept back in
-  (NFR-6). `src/` is currently 1,510 effective lines; 490 lines of headroom remain before Phase 3
-  needs to budget against the ceiling.
+  (NFR-6). `src/` is currently 1,547 effective lines, leaving about 450 of headroom before Phase 3
+  needs to budget against the ceiling. Count it the same way each time or the trend is meaningless:
+
+  ```bash
+  find src -name '*.ts' | xargs cat | grep -vE '^\s*$' | grep -vE '^\s*(//|/\*|\*|\*/)' | wc -l
+  ```
+
+  Earlier figures in the build ledgers (1,186, 1,510) were taken by hand and run 10 to 30 lines
+  below this command, so compare like with like rather than reading a jump that is not there.
 
 ## Conventions
 

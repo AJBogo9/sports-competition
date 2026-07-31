@@ -28,7 +28,9 @@ placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9); see Deploy below.
 3. Before pointing this at a real competition, replace the placeholder dates in `src/config.ts`
    (`COMPETITION_START` / `COMPETITION_END`, see the comment there) and re-verify every guild's
    `memberCount`: it is the denominator of every ranking, so a stale count silently distorts every
-   comparison in the competition.
+   comparison in the competition. **Any change under `src/` needs `docker compose up -d --build`,
+   not `docker compose restart bot`.** The image copies `src` in at build time and nothing
+   bind-mounts it, so a restart quietly keeps running the previous configuration.
 4. For the eventual move to the guild's own hosting: `scripts/dump.sh` writes a timestamped dump to
    `./backups`, and `scripts/restore.sh <dump.sql>` replaces the contents of a running database with
    one. Copy the latest dump and `.env` over, then restore on the new host.

@@ -179,13 +179,61 @@ UPDATE chats SET last_monday_week = last_monday_week - INTERVAL '7 days';
 - [ ] Confirm no Monday post fires for a chat bound this week, and none fires for the
       competition's first week
 
-**Known gap:** the competition window ends on a Sunday (`COMPETITION_END`), so the wrap-up Monday
-post for the final week would fall due the Monday after it, and by then `isInWindow` is already
-false, so the ticker returns before it ever reaches the Monday-post check. That last week's
-result never gets a Monday post from this mechanism. This is not a checklist step because there
-is nothing to run against a real client here, only a scheduling gap; whoever owns the real
-competition dates should decide whether to special-case the closing week or post the final
-standings some other way.
+### The closing post
+
+Phase 2 design 4.8. `COMPETITION_END` is a Sunday, so the final week's result falls due on the
+Monday *after* the window closes. The pin refresh stops at the window and the Monday post runs one
+week past it, which means the two gates have to be checked separately: a single relaxed gate would
+pass the first step below and destroy the pinned standings while doing it.
+
+This needs the competition window moved rather than the ledger, so it is its own short run.
+
+**Three things about this setup will otherwise waste your time.**
+
+1. **It is a rebuild, not a restart.** The Dockerfile does `COPY src ./src` and nothing bind-mounts
+   `src` into the container, so `docker compose restart bot` runs the *old* dates. Every config
+   change here needs `docker compose up -d --build`. A restart would show no change at all and
+   read as the feature not working.
+2. **`bun test` will go red while the dates are moved**, and that is expected.
+   `tests/domain/scoring.test.ts` asserts that today falls inside the configured window (design
+   4.6), which is exactly what you are about to make false. Do not try to fix it. It goes green
+   again when you restore the real dates.
+3. **The figures in the post will probably be zeros, and that is not a failure.** The post reports
+   the week *before* the current one, and nothing you can log during a smoke session lands there:
+   backdating stops at yesterday (FR-10) and nothing may write activity data without a real user
+   action (NFR-4). Run this on a **Monday or Tuesday**, after a smoke session that logged during
+   the previous week, and you get real numbers. On any other day you get a winner at 0.0, and the
+   step still does its job: what is under test here is the copy and the pin, not the arithmetic.
+
+Setup: edit `COMPETITION_END` in `src/config.ts` to **last Sunday** and `COMPETITION_START` to
+eight weeks before that, `docker compose up -d --build`, then put the ledger a week back with the
+same `UPDATE` as above. Log a few activities from a test account and let one pin refresh land
+*before* editing the dates, so the frozen table holds non-zero numbers and an all-zero overwrite is
+obvious at a glance.
+
+- [ ] Screenshot the pinned message before the rebuild, so you have the frozen table to compare
+      against. Note its numbers
+- [ ] Within a minute a Monday post appears, naming a winner and this chat's own placement in the
+      same shape an ordinary Monday post uses
+- [ ] That post opens **"That's the competition."** and closes **"Thanks for moving."** It must
+      not contain "New week", "back to zero", "Nothing carries over" or "This week is open": the
+      competition is over and there is no week for anyone to act on
+- [ ] **The pinned message is byte-identical to the screenshot**, immediately and again after
+      waiting a further 20 minutes so at least one pin-refresh interval has certainly elapsed.
+      This is the step the whole section exists for. If the pin has changed to a table of zeroes,
+      the two gates have been collapsed into one, and the frozen final standings of a real
+      competition would have been overwritten in every guild chat
+- [ ] Now prove the bound is one week wide and not an open-ended licence to keep posting. Move
+      `COMPETITION_END` back to **two Sundays ago** (and `COMPETITION_START` eight weeks before
+      that), `docker compose up -d --build`, and run the ledger `UPDATE` again. **No post may
+      appear at all**, and the log stays quiet. Watch for at least two minutes.
+      Do *not* test this by re-running the `UPDATE` on the previous step's window: that nudge
+      makes the chat owed a post again by definition, so a second post appearing there is the
+      ledger doing its job, not the bound failing. Only moving the window past the wrap-up week
+      exercises the bound
+- [ ] Restore the real `COMPETITION_START` and `COMPETITION_END` in `src/config.ts`,
+      `docker compose up -d --build`, and confirm the pinned message returns to live numbers and
+      `bun test` is green again
 
 ## Survival
 

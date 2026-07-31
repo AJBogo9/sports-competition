@@ -261,11 +261,49 @@ The timer becomes a loop that asks that question and acts. This keeps the layeri
 Phase 1's section 3 intact: the interesting logic is pure and testable without Telegram, and the
 untestable glue holds no decisions.
 
-### 4.7 The ticker is inert outside the competition window
+### 4.7 The pin refresh is inert outside the competition window
 
-No refresh and no post when today is outside `COMPETITION_START`..`COMPETITION_END`. The final tick
-before the end leaves the closing numbers pinned, which is the correct resting state for a
-competition that is over.
+No refresh when today is outside `COMPETITION_START`..`COMPETITION_END`. The final tick before the
+end leaves the closing numbers pinned, which is the correct resting state for a competition that is
+over.
+
+An earlier draft of this section said "no refresh **and no post**", and the implementation gated
+both on one `isInWindow` check. That was wrong, and 4.8 is the correction.
+
+### 4.8 The Monday post runs one week past the window; the pin does not
+
+`COMPETITION_END` is a Sunday, so the final week's result falls due on the **Monday after the window
+closes**, at which point 4.7's gate had already made the ticker inert. The consequence was precise
+and bad: the last week of the competition was the one week whose result was never announced, and it
+is the week people care about most.
+
+The two halves therefore stop on different dates. `shouldPostMonday` gains an end bound, tested
+against the previous week's **start** against `COMPETITION_END`, exactly mirroring 4.5's test of the
+previous week's **end** against `COMPETITION_START`. Both bounds ask about the week being reported
+rather than the week the post lands in, which is what keeps them right when the competition begins
+or ends mid-week. Exactly one Monday past the end has something to say; the one after that does not.
+
+**The trap, recorded because the fix is a two-line change that invites a one-line version.** Do not
+relax `isInWindow` into a single gate covering both halves. Outside the window,
+`standings(weekStart, today)` covers a week the competition does not, so it returns an all-zero
+"This week" table. A pin refresh on that tick would overwrite the frozen final standings with a
+table of zeroes in every guild chat, which is a worse outcome than the gap being fixed. The pin's
+gate must stay the tighter of the two, including on the tick that sends the closing post.
+
+The closing post also needs its own copy. The ordinary post opens "New week. Everyone back to zero."
+and closes "Nothing carries over. This week is open."; on a post that fires after the competition
+has ended, both sentences are false and there is no week for anyone to act on. `mondayPost` takes a
+`final` flag that swaps those two sentences for a close and changes nothing between them, because
+the figures mean the same thing either way. The flag is decided from `weekStart`, never from
+`isInWindow(today)`: with an end falling mid-week the two disagree, and reading today's date would
+print the closing copy on a Monday that still had a partial week to come.
+
+Rejected: suppressing the final post and announcing the result by hand. It puts a manual step at the
+exact moment attention has moved on, which is when manual steps get skipped.
+
+Rejected: naming the season winner in the closing post as well. It needs a second `standings()` call
+over the whole window and three more renderer inputs, all on a path that executes once per
+competition. The season table is already visible in the frozen pin and in `/standings`.
 
 ---
 
@@ -350,7 +388,7 @@ are how that ceiling is kept honest.
 | Reminder sending: FR-21, FR-22, FR-23 | 3 | Unchanged by this phase |
 | `/remind` on/off command (FR-24) | 3 | Registration copy still promises it |
 | `reminder_asked`, to distinguish "never asked" from "declined" | 3 | Migration `003`. Phase 1 ledger item, untouched here |
-| `NOT u.blocked` erasing a blocked user's history from guild totals | 3 | Cannot fire until FR-23 sets the column. Now reaches the pinned message too, so it is worth more than it was |
+| ~~`NOT u.blocked` erasing a blocked user's history from guild totals~~ | ~~3~~ | **Done, not deferred.** Removed from all three query sites after this phase, ahead of FR-23 rather than alongside it: while nothing sets the column the removal is provably a no-op, and it stopped correctness depending on a future implementer reading a comment. There were three sites, not the two the ledger recorded: `neighbours()` carried the clause with no warning at all |
 | Optional tag UI (FR-11) | 4 | `days.tag` exists, no UI |
 | Nightly backup cron (NFR-3) | 4 | Manual dump and restore already ship |
 
