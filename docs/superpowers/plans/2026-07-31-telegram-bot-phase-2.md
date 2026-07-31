@@ -118,7 +118,7 @@ describe("chats (FR-18)", () => {
     expect(chat!.pinFailed).toBe(false);
   });
 
-  // Design 2.2.2. A supergroup id must survive the round trip as an exact
+  // Phase 2 design 2.2. A supergroup id must survive the round trip as an exact
   // string, never as a JS number.
   test("returns the chat id as an exact string", async () => {
     await bindChat(sql, SUPERGROUP, "prodeko", WEEK);
@@ -131,7 +131,7 @@ describe("chats (FR-18)", () => {
     expect(await findChat(sql, SUPERGROUP)).toBeNull();
   });
 
-  // Design 2.3.1. Rebinding changes the guild and must NOT reset the Monday
+  // Phase 2 design 3.1. Rebinding changes the guild and must NOT reset the Monday
   // ledger, or rebinding would be a way to trigger a second post in one week.
   test("rebinding changes the guild but keeps last_monday_week", async () => {
     await bindChat(sql, SUPERGROUP, "prodeko", WEEK);
@@ -154,7 +154,7 @@ describe("chats (FR-18)", () => {
     expect(chat!.pinFailed).toBe(false);
   });
 
-  // Design 2.3.2. The flag drives one extra line in the render and is cleared
+  // Phase 2 design 3.2. The flag drives one extra line in the render and is cleared
   // the moment a retry succeeds.
   test("records and then clears a failed pin", async () => {
     await bindChat(sql, SUPERGROUP, "prodeko", WEEK);
@@ -340,7 +340,7 @@ git commit -m "Add the chats table and its queries (FR-18)"
 - Consumes: nothing new.
 - Produces: `participation(sql, guildSlug: string, from: string, to: string): Promise<number>` returning a share in `0..1`, not a percentage.
 
-Design 2.9.1 asks for the CTE extraction here rather than later, because this task touches the file anyway and Phase 3 takes the duplication from four sites to six. The three existing queries are covered by tests, which is what makes the refactor safe.
+Phase 2 design 9.1 asks for the CTE extraction here rather than later, because this task touches the file anyway and Phase 3 takes the duplication from four sites to six. The three existing queries are covered by tests, which is what makes the refactor safe.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -348,7 +348,7 @@ Add to `tests/db/standings.test.ts`, importing `participation` alongside the exi
 
 ```ts
 describe("participation (FR-20)", () => {
-  // Design 2.4.3. The denominator is the configured roster, the same one every
+  // Phase 2 design 4.3. The denominator is the configured roster, the same one every
   // other per-member number uses. Prodeko has 650 members in config.
   test("divides logging members by the full roster", async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
@@ -359,7 +359,7 @@ describe("participation (FR-20)", () => {
     expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
   });
 
-  // Design 2.4.3. FR-8 makes rest an explicit record rather than an absence,
+  // Phase 2 design 4.3. FR-8 makes rest an explicit record rather than an absence,
   // and this number measures engagement, not minutes.
   test("counts a rest day as participation", async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
@@ -559,19 +559,19 @@ describe("shouldPostMonday (FR-20)", () => {
     expect(decide({ lastPosted: "2026-08-03" })).toBe(false);
   });
 
-  // Design 2.4.4. Late beats never: a bot that was down for all of Monday
+  // Phase 2 design 4.4. Late beats never: a bot that was down for all of Monday
   // posts when it comes back, rather than skipping the week in silence.
   test("posts on Tuesday when Monday was missed", () => {
     expect(decide({ localDate: "2026-08-04", localHour: 3 })).toBe(true);
   });
 
-  // Design 2.4.5. On the first Monday there is no last week to report, and the
+  // Phase 2 design 4.5. On the first Monday there is no last week to report, and the
   // generic path would announce a winner at 0.0 minutes per member.
   test("does not post on the competition's first Monday", () => {
     expect(decide({ weekStart: START, lastPosted: "2026-07-20", localDate: START })).toBe(false);
   });
 
-  // Design 2.4.5. The test is on the previous week's END, so a competition
+  // Phase 2 design 4.5. The test is on the previous week's END, so a competition
   // that starts mid-week still reports the partial week that happened.
   test("posts on the first Monday when the competition started mid-week", () => {
     expect(
@@ -583,7 +583,7 @@ describe("shouldPostMonday (FR-20)", () => {
     ).toBe(true);
   });
 
-  // Design 2.2.4. Binding sets lastPosted to the current week, so a chat bound
+  // Phase 2 design 2.4. Binding sets lastPosted to the current week, so a chat bound
   // on a Thursday is not owed a post for the week it was bound in.
   test("does not post for the week a chat was just bound in", () => {
     expect(decide({ lastPosted: "2026-08-03", localDate: "2026-08-06" })).toBe(false);
@@ -748,7 +748,7 @@ describe("pinnedStandings (FR-19)", () => {
     expect(pinned).toBe(standingsMessage({ week: WEEK, season: WEEK }));
   });
 
-  // Design 2.3.2. The live number is the valuable part and it works unpinned,
+  // Phase 2 design 3.2. The live number is the valuable part and it works unpinned,
   // so a missing right is one extra line, not a failure state.
   test("adds one line when the bot could not pin", () => {
     const pinned = pinnedStandings({ week: WEEK, season: WEEK, pinFailed: true });
@@ -777,7 +777,7 @@ describe("mondayPost (FR-20)", () => {
     expect(post).toContain("22.8");
   });
 
-  // Design 2.4.3. The percentage is about the reader's guild, not the winner's.
+  // Phase 2 design 4.3. The percentage is about the reader's guild, not the winner's.
   test("states the reader's guild participation as a whole percentage", () => {
     expect(mondayPost(input)).toContain("31%");
   });
@@ -1286,7 +1286,7 @@ async function refreshPin(bot: Bot, sql: Sql, chat: Chat, weekStart: string, tod
     return;
   }
 
-  // Design 2.2.3. Skipping the unchanged edit removes the API call entirely
+  // Phase 2 design 2.3. Skipping the unchanged edit removes the API call entirely
   // rather than making it and swallowing Telegram's 400. Overnight, when
   // nobody logs, this means the refresh does nothing at all.
   //
@@ -1381,7 +1381,7 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
 
   async function tick(): Promise<void> {
     const { today, weekStart, hour } = await calendar(sql);
-    // Design 2.4.7. Inert outside the competition, which leaves the closing
+    // Phase 2 design 4.7. Inert outside the competition, which leaves the closing
     // numbers pinned as the resting state of a competition that is over.
     if (!isInWindow(today)) return;
 
