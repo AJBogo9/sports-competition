@@ -467,12 +467,28 @@ registration that their first name and activity are visible to other participant
 **NFR-1. Single process, outbound only.** The bot MUST use long polling. No public HTTPS endpoint,
 no domain, no TLS certificate, no inbound ports.
 
-**NFR-2. Deployment.** Two containers (bot and PostgreSQL) on one machine. **1 vCPU, 2 GB RAM,
-20 GB disk** is comfortable. Roughly €3.50 to €6 per month on a small VPS, or zero on an existing
-home server. Recheck prices before ordering: Hetzner repriced cloud servers on 15 June 2026.
+**NFR-2. Deployment.** The bot MUST run as a single long-polling process with its state in
+PostgreSQL. *Updated 2026-07-31:* it is deployed onto Tietokilta's existing infrastructure, as a
+NixOS service on `tikpannu` beside the guild's other Telegram bots, with its database on the shared
+Azure PostgreSQL flexible server. The two-container Docker Compose setup in this repository is the
+development and test path, not the deployment.
 
-**NFR-3. Backups.** A nightly `pg_dump` MUST be shipped off the machine. This is the one
-operational step that must not be skipped; a competition that loses its data mid-run is over.
+The original sizing stands for anyone self-hosting instead: two containers on one machine, **1 vCPU,
+2 GB RAM, 20 GB disk**, roughly €3.50 to €6 per month on a small VPS, or zero on an existing home
+server. Recheck prices before ordering: Hetzner repriced cloud servers on 15 June 2026.
+
+**NFR-3. Backups.** A nightly `pg_dump` MUST be shipped off the machine. This is the one operational
+step that must not be skipped; a competition that loses its data mid-run is over.
+
+*Updated 2026-07-31:* satisfied by the deployment target rather than by code in this repository.
+Tietokilta's backup system enumerates every non-system database on the shared PostgreSQL server,
+dumps each one nightly, and ships the result to off-site storage with a 7 daily plus 4 weekly
+retention, reporting success and failure to a status page. Putting this bot's database there is what
+meets the requirement, and it is met from the moment the database exists.
+
+What this repository owns instead is the proof that a dump is worth having:
+`tests/db/restore.test.ts` restores one into an empty database and asserts every published number is
+reproduced exactly, in both dump formats. An untested restore is the usual way a backup fails.
 
 **NFR-4. No debug or simulation endpoints.** Any code path that can write points or activity data
 without a real user action MUST NOT exist in a production build. See defect 3 in section 2.
@@ -507,6 +523,12 @@ both main flows. Phases 2 to 4 add about 150, 180 and 120.
 If the total passes **2,000**, something from section 8 has crept back in. An earlier draft of this
 requirement said 800 to 1,000, which was a guess made before reminders with a follow-up, dual
 weekly and season standings, streaks and tags were added.
+
+*Note added 2026-07-31:* the per-phase split above (900, then about 150, 180 and 120) is a rounded
+residual, not a costed estimate. The table has no row for tags and none for backups, its rows sum to
+1,305, and the phase split sums to 1,350. Phase 4's 120 in particular was written while the weekly
+streak was still unbuilt, and Phases 1 and 2 have since spent it. Actual figures: 1,916 effective
+lines after Phase 3, about 1,921 after Phase 4.
 
 ---
 
@@ -573,6 +595,23 @@ state. That is a schema change of roughly 40 to 60 lines against a ceiling (NFR-
 lines of headroom at the time, with Phase 4 already budgeted at 120 of those. Re-picking the hour is
 two taps.
 
+**Q5. FR-11's optional tag is cut.** *Decided 2026-07-31.* FR-11 is the only `MAY` in section 5;
+every other requirement is `MUST` or `SHOULD`. Cutting it exercises an option this specification
+granted rather than deviating from it.
+
+Four reasons. It was never designed: [prototype/bot-flows.html](prototype/bot-flows.html) has no tag
+screen, so building it means inventing one. It serves none of the four success criteria in section
+1, because no other participant ever sees a tag. It adds a tap to the one path that must stay at one
+tap (section 4.1), which is the friction section 2 defect 6 blames for mid-competition dropoff. And
+it costs 70 to 90 effective lines against the 84 that remained under NFR-6, since NFR-5 forbids
+session state and so the tag list must be preset buttons in the callback payload.
+
+Recorded honestly: a tag is the defanged form of the sport taxonomy section 8 rejects. FR-11 removes
+the dispute by removing the scoring, and it is one configuration change away from restoring it. That
+is not why it is cut, but it is why re-adding it should go through section 8 first.
+
+`days.tag` stays in the schema. Dropping it costs a migration to buy nothing.
+
 ### Unresolved but not blocking
 
 - Are the guild member counts in section 1 current? They are the per-capita denominator.
@@ -611,7 +650,12 @@ five ignores.
 
 ### Phase 4: it survives contact
 
-Weekly streak, optional tags, undo edge cases, the nightly backup, deployment.
+The nightly backup and the proof it restores.
+
+*Updated 2026-07-31:* three of this phase's original contents were built earlier. The weekly streak
+moved to Phase 1 because FR-14 makes `/me` show it; the undo edge cases moved with it, because FR-9
+contradicts its own acceptance test whenever a log displaced an earlier tier; and deployment shipped
+with Phase 2. FR-11's optional tag is cut (section 9, Q5). What remains is NFR-3.
 
 *Done when:* the backup restores into an empty database and reproduces the standings exactly.
 
