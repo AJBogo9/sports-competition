@@ -37,15 +37,19 @@ backed up. See below for what is.
 
 ## Deploy
 
-The bot runs on Tietokilta's infrastructure ([`Tietokilta/infra`](https://github.com/Tietokilta/infra)):
-the process as a NixOS service on `tikpannu` beside the guild's other Telegram bots, and **the
-database on the shared Azure PostgreSQL flexible server**. That database is the real one.
+The bot is built to run on Tietokilta's infrastructure
+([`Tietokilta/infra`](https://github.com/Tietokilta/infra)): the process as a NixOS service on
+`tikpannu` beside the guild's other Telegram bots, and the database on the shared Azure PostgreSQL
+flexible server. **That is the deployment this repository targets, and it has not been carried out
+yet:** the infra change below has not been raised, so nothing described here is running today.
 
-Putting it there is also what satisfies NFR-3. That backup system enumerates every non-system
-database on the server nightly, dumps each one and ships it off-site with a 7 daily plus 4 weekly
-retention, so this bot's data is covered from the moment the database exists, with no backup code in
-this repository. What this repository provides instead is `tests/db/restore.test.ts`, which proves a
-dump restores into an empty database and reproduces every published number exactly.
+Putting the database there is also what will satisfy NFR-3, and it is the reason the requirement
+needs no backup code here. That backup system enumerates every non-system database on the server
+nightly, dumps each one and ships it off-site with a 7 daily plus 4 weekly retention, so this bot's
+data is covered from the moment the database exists. **Until that database exists, there is no
+off-machine backup of anything.** What this repository provides is `tests/db/restore.test.ts`, which
+proves a dump restores into an empty database and reproduces every published number exactly, in both
+dump formats.
 
 ### What the infra change has to contain
 
@@ -72,7 +76,9 @@ with a line asking for admin rights until it gets them.
 
 ### Stopping the group chat features without stopping the bot
 
-There is no dedicated switch for this yet. Two levers exist today, and neither is free:
+This section is about a compose deployment: local, or a guild self-hosting instead of using
+Tietokilta's infrastructure. There is no dedicated switch for this yet. Two levers exist today, and
+neither is free:
 
 - `docker compose stop bot` stops the ticker along with everything else: registration, `/log`,
   `/me` and `/standings` all go down too, not just the pinned standings and the Monday post.
@@ -85,8 +91,9 @@ There is no dedicated switch for this yet. Two levers exist today, and neither i
   orphaned: still pinned in the chat, but no longer tracked, so the bot can neither update nor
   unpin it.
 
-**Never run the `test` compose profile (`db-test`) on the production host.** It binds a port on the
-host and uses a throwaway password; it exists only for `bun test` against a disposable database.
+**Never run the `test` compose profile (`db-test`) on a self-hosted production host.** It binds a
+port on the host and uses a throwaway password; it exists only for `bun test` against a disposable
+database.
 
 ## The design in six lines
 
