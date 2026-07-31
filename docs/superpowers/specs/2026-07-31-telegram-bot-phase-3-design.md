@@ -180,13 +180,16 @@ count rather than resuming three ignores into an old one.
 
 FR-23 says a 403 must permanently stop sends and that a blocked user is never retried. Taken
 literally that is a one-way door, and Telegram makes the door two-way: a user who unblocks can
-message the bot, and **an incoming update is proof that Telegram is no longer refusing us**, since
-a blocked user physically cannot produce one.
+message the bot, and **an incoming update is proof that Telegram is no longer refusing us**.
 
-So `blocked` is cleared by any private-chat update from that user. FR-23's intent holds exactly: no
-send is ever retried *into* a block. What is avoided is a single transient 403 removing someone
-from the competition's only re-engagement mechanism for the rest of the season, in a system whose
-entire risk register says reachability is the scarce resource.
+`my_chat_member` is the exception, and it is the one that matters: that update type fires precisely
+when someone blocks or unblocks the bot, so it arrives *from* a user who has just blocked it.
+Trusting it would let a block event clear the flag the send loop had just set. The middleware
+therefore clears `blocked` on any private-chat update except that one.
+
+FR-23's intent holds exactly: no send is ever retried *into* a block. What is avoided is a single
+transient 403 removing someone from the competition's only re-engagement mechanism for the rest of
+the season, in a system whose entire risk register says reachability is the scarce resource.
 
 `blocked` gates **unsolicited sends only**: the daily reminder and the follow-up. It does not gate
 a reply to a message the user just sent, which cannot 403 anyway because sending it required them

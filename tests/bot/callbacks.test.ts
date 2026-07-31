@@ -126,3 +126,56 @@ describe("remind and keep (FR-22, FR-24)", () => {
     expect(encode({ kind: "keep" }).length).toBeLessThan(64);
   });
 });
+
+// Phase 4 design 5.1. decode() destructures only the first three colon-separated
+// parts, so every kind silently ignored trailing junk: decode("remind:20:30")
+// returned a valid remind. Harmless in itself, since a forged payload can only
+// set the forger's own hour to a range-checked value, but it meant seven kinds
+// each had their own unchecked tail. One round-trip assertion closes all seven,
+// which is why this is tested per kind rather than once.
+describe("decode rejects anything it would not itself have encoded", () => {
+  test("every kind rejects a trailing segment", () => {
+    for (const bad of [
+      "guild:prodeko:extra",
+      "move:tik:extra",
+      "bind:prodeko:extra",
+      "hour:20:extra",
+      "remind:20:30",
+      "yesterday:2026-07-29:extra",
+      "checkin:2026-07-30:extra",
+      "log:2026-07-30:short:extra",
+      "undo:2026-07-30:medium:extra",
+    ]) {
+      expect(decode(bad)).toBeNull();
+    }
+  });
+
+  // "off" is the encoded form of hour: null for both kinds, so the round-trip
+  // has to survive the null case rather than only the numeric one.
+  test("the off payloads still decode", () => {
+    expect(decode("hour:off")).toEqual({ kind: "hour", hour: null });
+    expect(decode("remind:off")).toEqual({ kind: "remind", hour: null });
+  });
+
+  // encode() emits "hour:7", never "hour:07", so a zero-padded hour is a payload
+  // no build of this bot has sent. Pinned rather than left implicit: it is the
+  // one input whose behaviour this change deliberately alters.
+  test("a zero-padded hour is not a payload this bot produces", () => {
+    expect(decode("hour:07")).toBeNull();
+    expect(decode("hour:7")).toEqual({ kind: "hour", hour: 7 });
+  });
+
+  test("every sample still round-trips, so the assertion is not too strict", () => {
+    for (const sample of SAMPLES) {
+      expect(decode(encode(sample))).toEqual(sample);
+    }
+    for (const sample of [
+      { kind: "remind", hour: 20 },
+      { kind: "remind", hour: 0 },
+      { kind: "remind", hour: null },
+      { kind: "keep" },
+    ] as const satisfies readonly Callback[]) {
+      expect(decode(encode(sample))).toEqual(sample);
+    }
+  });
+});

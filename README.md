@@ -3,11 +3,17 @@
 A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
 University student guilds. One tap per day, guilds ranked on minutes per member.
 
-**Status:** Phases 1 and 2 are built: registration, `/log`, `/me`, `/standings`, the group chat
-(binding, pinned standings, the Monday post), and the Docker deployment below. English, and
-reminders are a per-user choice. Phase 3 (reminders actually being sent) and Phase 4 (optional
-tags, the nightly backup) are not built ([SPEC.md](SPEC.md) §10). Competition dates are still a
-placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9); see Deploy below.
+**Status:** Phases 1 to 3 are built: registration, `/log`, `/me`, `/standings`, the group chat
+(binding, pinned standings, the Monday post), and reminders with their five-ignore auto-stop and
+`/remind`. Phase 4's code is also done, the restore-fidelity test that proves a backup is worth
+having and the decoder hardening against trailing junk, but Phase 4 itself is not complete: it
+reduces to NFR-3, a nightly backup, and NFR-3 is met by deploying this bot's database onto
+Tietokilta's infrastructure, which has not happened yet ([SPEC.md](SPEC.md) NFR-3). English, and
+reminders are a per-user choice. FR-11's optional tag is cut ([SPEC.md](SPEC.md) §9 Q5).
+
+Three things gate real use. Nothing is deployed yet, so there is no off-machine backup of anything
+(see Deploy below). No phase's smoke run has been done ([docs/SMOKE.md](docs/SMOKE.md)). And
+competition dates are still a placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9 Q1).
 
 ## Start here
 
@@ -17,7 +23,7 @@ placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9); see Deploy below.
 | [docs/evidence.md](docs/evidence.md) | Primary citations for every design decision, with exact figures and the claims that did not survive checking |
 | [prototype/bot-flows.html](prototype/bot-flows.html) | Clickable mockup of every screen. Open it in a browser |
 
-## Deploy
+## Run it locally
 
 1. `cp .env.example .env`, then fill it in: `BOT_TOKEN` from [@BotFather](https://t.me/BotFather)
    (`/newbot`, then copy the token it gives you), and a `POSTGRES_PASSWORD` of your choosing.
@@ -25,15 +31,46 @@ placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9); see Deploy below.
    never committed.
 2. `docker compose up -d --build` starts the bot and its database. Logs: `docker compose logs -f
    bot`.
-3. Before pointing this at a real competition, replace the placeholder dates in `src/config.ts`
-   (`COMPETITION_START` / `COMPETITION_END`, see the comment there) and re-verify every guild's
-   `memberCount`: it is the denominator of every ranking, so a stale count silently distorts every
-   comparison in the competition. **Any change under `src/` needs `docker compose up -d --build`,
-   not `docker compose restart bot`.** The image copies `src` in at build time and nothing
-   bind-mounts it, so a restart quietly keeps running the previous configuration.
-4. For the eventual move to the guild's own hosting: `scripts/dump.sh` writes a timestamped dump to
-   `./backups`, and `scripts/restore.sh <dump.sql>` replaces the contents of a running database with
-   one. Copy the latest dump and `.env` over, then restore on the new host.
+3. **Any change under `src/` needs `docker compose up -d --build`, not `docker compose restart
+   bot`.** The image copies `src` in at build time and nothing bind-mounts it, so a restart quietly
+   keeps running the previous configuration.
+
+**This compose setup is the development and test path, not the deployment.** The `db` service is a
+throwaway database in a local volume. It is not the competition's data and it is not what gets
+backed up. See below for what is.
+
+## Deploy
+
+The bot is built to run on Tietokilta's infrastructure
+([`Tietokilta/infra`](https://github.com/Tietokilta/infra)): the process as a NixOS service on
+`tikpannu` beside the guild's other Telegram bots, and the database on the shared Azure PostgreSQL
+flexible server. **That is the deployment this repository targets, and it has not been carried out
+yet:** the infra change below has not been raised, so nothing described here is running today.
+
+Putting the database there is also what will satisfy NFR-3, and it is the reason the requirement
+needs no backup code here. That backup system enumerates every non-system database on the server
+nightly, dumps each one and ships it off-site with a 7 daily plus 4 weekly retention, so this bot's
+data is covered from the moment the database exists. **Until that database exists, there is no
+off-machine backup of anything.** What this repository provides is `tests/db/restore.test.ts`, which
+proves a dump restores into an empty database and reproduces every published number exactly, in both
+dump formats.
+
+### What the infra change has to contain
+
+| Piece | Where | Note |
+|---|---|---|
+| Database | a Terraform module calling `modules/service_database` | The `db_name` is what the nightly backup discovery picks up. Nothing further is needed for NFR-3 |
+| Bot package | `Tietokilta/tikbots` | The flake `modules/tikbots/default.nix` imports, and how the other bots reach `tikpannu` |
+| NixOS service | `tikpannu-nixos-config/modules/tikbots/` | Follow `tikbot.nix`: a sops secret for the token and a `sops.templates` env file owned by the service user |
+| Secrets | `tikpannu-nixos-config/modules/secrets/` | `BOT_TOKEN` and `DATABASE_URL`. The database password is generated by `service_database` |
+| `DATABASE_URL` | that env file | Must end `?sslmode=require`. Azure PostgreSQL requires TLS, and postgres.js reads `sslmode` straight from the URL, so no code change is needed |
+
+Before pointing any of this at a real competition, replace the placeholder dates in `src/config.ts`
+(`COMPETITION_START` / `COMPETITION_END`) and re-verify every guild's `memberCount`: it is the
+denominator of every ranking, so a stale count silently distorts every comparison.
+
+`scripts/dump.sh` and `scripts/restore.sh` remain for moving a self-hosted instance by hand. They
+are a convenience, not the backup.
 
 A guild's board adds the bot to their own group chat with `https://t.me/<bot>?startgroup=<slug>`
 (their guild's slug from `src/config.ts`), which binds the chat and starts a pinned standings
@@ -43,7 +80,9 @@ with a line asking for admin rights until it gets them.
 
 ### Stopping the group chat features without stopping the bot
 
-There is no dedicated switch for this yet. Two levers exist today, and neither is free:
+This section is about a compose deployment: local, or a guild self-hosting instead of using
+Tietokilta's infrastructure. There is no dedicated switch for this yet. Two levers exist today, and
+neither is free:
 
 - `docker compose stop bot` stops the ticker along with everything else: registration, `/log`,
   `/me` and `/standings` all go down too, not just the pinned standings and the Monday post.
@@ -56,8 +95,9 @@ There is no dedicated switch for this yet. Two levers exist today, and neither i
   orphaned: still pinned in the chat, but no longer tracked, so the bot can neither update nor
   unpin it.
 
-**Never run the `test` compose profile (`db-test`) on the production host.** It binds a port on the
-host and uses a throwaway password; it exists only for `bun test` against a disposable database.
+**Never run the `test` compose profile (`db-test`) on a self-hosted production host.** It binds a
+port on the host and uses a throwaway password; it exists only for `bun test` against a disposable
+database.
 
 ## The design in six lines
 

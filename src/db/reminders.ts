@@ -185,8 +185,11 @@ export async function setBlocked(sql: Sql, telegramId: number): Promise<void> {
 
 /**
  * Phase 3 design 3.5. An incoming update is proof Telegram has stopped
- * refusing us, because a blocked user physically cannot send one. FR-23's
- * "never retried" still holds exactly: no send is ever retried INTO a block.
+ * refusing us, with one exception: my_chat_member fires precisely when
+ * someone blocks or unblocks the bot, so it arrives from a user who has just
+ * blocked it and proves nothing. The caller (bot/index.ts) excludes that
+ * update type before calling this. FR-23's "never retried" still holds
+ * exactly: no send is ever retried INTO a block.
  *
  * The `AND blocked` is not redundant. This runs on every private-chat update,
  * and it makes the normal case a matched-nothing no-op rather than a row
