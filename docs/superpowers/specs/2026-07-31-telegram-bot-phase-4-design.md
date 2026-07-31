@@ -62,7 +62,7 @@ was rejected as premature rather than wrong: the estimate was low rather than th
 nothing from §8 has crept in, and if the one tripwire in this project is ever spent it should be
 spent on something binding.
 
-**Ceiling after this phase: about 1,921 of 2,000.**
+**Ceiling after this phase: 1,920 of 2,000.**
 
 ---
 
@@ -292,7 +292,7 @@ dump format.
 | New `decode()` tests, one per callback kind | Section 5's round-trip assertion, including that valid payloads still decode |
 | `bun test` | 242 existing tests must stay green. This phase changes one `src/` function, so a regression here means the assertion is too strict |
 | `bunx tsc --noEmit` | Unchanged expectation |
-| The counting command in CLAUDE.md | Must read about 1,921, not 2,000 |
+| The counting command in CLAUDE.md | Must read 1,920, not 2,000 |
 
 No smoke additions. This phase touches nothing a user can see: `decode()` becomes stricter about
 payloads no client produces, and everything else is tests and documents.
@@ -309,7 +309,7 @@ change that in either direction.
 
 ## 8. Size
 
-`src/` is 1,916 effective lines before this phase and about 1,921 after, against NFR-6's ceiling of
+`src/` is 1,916 effective lines before this phase and 1,920 after, against NFR-6's ceiling of
 2,000. Count it with the command in CLAUDE.md; earlier figures in the build ledgers were taken by
 hand and run 10 to 30 lines low.
 
