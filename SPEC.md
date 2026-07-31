@@ -480,11 +480,13 @@ server. Recheck prices before ordering: Hetzner repriced cloud servers on 15 Jun
 **NFR-3. Backups.** A nightly `pg_dump` MUST be shipped off the machine. This is the one operational
 step that must not be skipped; a competition that loses its data mid-run is over.
 
-*Updated 2026-07-31:* satisfied by the deployment target rather than by code in this repository.
-Tietokilta's backup system enumerates every non-system database on the shared PostgreSQL server,
-dumps each one nightly, and ships the result to off-site storage with a 7 daily plus 4 weekly
-retention, reporting success and failure to a status page. Putting this bot's database there is what
-meets the requirement, and it is met from the moment the database exists.
+*Updated 2026-07-31:* this requirement is to be met by the deployment target rather than by code in
+this repository, and **it is not met yet.** Tietokilta's backup system enumerates every non-system
+database on the shared PostgreSQL server, dumps each one nightly, and ships the result to off-site
+storage with a 7 daily plus 4 weekly retention, reporting success and failure to a status page.
+Placing this bot's database there is therefore all that is required, and it will be met from the
+moment that database exists. Until then there is no off-machine backup, and section 10's Phase 4 is
+not complete.
 
 What this repository owns instead is the proof that a dump is worth having:
 `tests/db/restore.test.ts` restores one into an empty database and asserts every published number is
