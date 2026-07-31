@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import postgres, { type Sql } from "postgres";
-import { waitForDatabase } from "../../src/db/client.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { createUser, syncGuilds } from "../../src/db/users.ts";
 import { logDay, weekMinutes } from "../../src/db/days.ts";
@@ -222,25 +221,6 @@ describe("restore fidelity, directory format (NFR-3, SPEC.md section 10)", () =>
 
     const target = postgres(urlFor(TARGET_DB), { max: 2, onnotice: () => {} });
     try {
-      // postgres.js infers an untyped sql.array() parameter's oid at query
-      // construction time from a shared, per-client cache that a connection
-      // only populates once it has completed one round trip (its own internal
-      // fetchArrayTypes() bootstrap). tierMinutes() in src/db/tiers.ts calls
-      // sql.array(TIER_NAMES) with no explicit type, so if captureSurface's
-      // first standings() call were the very first query this client ever
-      // constructed, that cache would still be empty and the array parameter
-      // would serialize without braces ("short,medium,long,rest" instead of
-      // "{short,medium,long,rest}"), which Postgres rejects as a malformed
-      // array literal. That is a real, reproducible quirk (confirmed against
-      // a freshly migrated, never-restored database too, so it is not specific
-      // to this test's restored target), but it can never fire in the running
-      // bot: src/main.ts always calls waitForDatabase() right after connect(),
-      // before migrate(), syncGuilds() or any standings query, on every boot,
-      // restored database or not. Calling it here first makes this connection
-      // behave the way the real bot's connection always does, so the
-      // assertion below is about restore fidelity and not about this
-      // unrelated, always-masked-in-production client quirk.
-      await waitForDatabase(target);
       const restored = await captureSurface(target);
       expect(restored).toEqual(original);
     } finally {
