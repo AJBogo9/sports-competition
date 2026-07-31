@@ -177,7 +177,7 @@ Expected: PASS, all tests in the file.
 bun run test:db && bunx tsc --noEmit
 ```
 
-Expected: **243 pass, 0 fail** (242 baseline plus the 4 new tests in one file, reported as individual tests, so confirm the number went up and `0 fail` held). `tsc` exits 0.
+Expected: **246 pass, 0 fail**. That is the 242 baseline plus the 4 tests added in Step 1. If the total is 246 but some other file's count moved, something else changed: investigate rather than accepting the total. `tsc` exits 0.
 
 If any pre-existing test now fails, the assertion is too strict. Do not loosen it blindly: report which payload broke, because a real handler emitting a payload `encode` cannot reproduce is a defect in that handler, not in this assertion.
 
