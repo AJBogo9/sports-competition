@@ -19,8 +19,8 @@ docker compose logs -f bot
 `bun test` alone fails on `tests/db/*` unless the `db-test` service is up. Bun auto-loads `.env`,
 so `TEST_DATABASE_URL` is picked up from there.
 
-**Never run the `test` compose profile on the production host.** `db-test` binds a host port and
-uses a throwaway password.
+**Never run the `test` compose profile on a self-hosted production host.** `db-test` binds a host
+port and uses a throwaway password.
 
 ## Documents, in precedence order
 
@@ -75,11 +75,11 @@ Handlers register `callback_query:data` listeners that fall through via `next()`
 order in `createBot` matters**: the blocked-clearing middleware first, then group, registration,
 check-in, reports, reminders, then a catch-all that answers unclaimed callbacks.
 
-**Phases 1, 2 and 3 are built** (registration, `/log`, `/me`, `/standings`, the group chat
-binding, the pinned standings, the Monday post, the daily reminder with its five-ignore
-auto-stop, `/remind`, 403 handling, Docker deploy). Phase 4 (tags, nightly backup) is not.
-SPEC.md §10 forbids starting a phase before the previous one works end to end, and **no phase's
-smoke run has been done yet** (docs/SMOKE.md).
+**Phases 1 to 4 are built** (registration, `/log`, `/me`, `/standings`, the group chat binding, the
+pinned standings, the Monday post, the daily reminder with its five-ignore auto-stop, `/remind`, 403
+handling, and the restore-fidelity test). FR-11's optional tag is **cut**, not pending: SPEC.md §9
+Q5. **No phase's smoke run has been done yet** (docs/SMOKE.md), and that remains the gate on real
+users.
 
 ## Invariants that are easy to break
 
@@ -148,10 +148,33 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
 - **`setReminderHour` does three things, and each one is load-bearing:** sets `reminder_asked`,
   resets `ignored_streak` (so `/remind` lifts a pause), and stamps `last_reminded_at` when the
   chosen hour has already passed (so picking 20:00 at 21:00 does not fire seconds later).
+- **`decode()` re-encodes what it parsed and demands the result match the input.** That single
+  assertion is what rejects trailing junk on all seven multi-part callback kinds, so a new kind
+  inherits the check instead of needing its own length test. It also means `decode` is only ever as
+  permissive as `encode` is: a handler that builds a payload by hand rather than through `encode`
+  will have it rejected, which is the intended direction.
+- **The compose `db` service is not production and its volume is not the competition's data.** The
+  real database is on Tietokilta's shared Azure PostgreSQL server, which is also what makes NFR-3
+  true: that server's databases are dumped and shipped off-site nightly by infrastructure outside
+  this repository. `tests/db/restore.test.ts` is this repository's half, and it uses real databases
+  rather than `freshDatabase()` schemas because the backup it protects dumps per database.
+- **`tiers.ts` passes explicit Postgres oids to `sql.array()`** (1009 for `text[]`, 1007 for
+  `int4[]`), and this is load-bearing rather than decorative. postgres.js resolves an array
+  parameter's wire type at query *construction* time, from a per-client cache that is only populated
+  after that client has completed one prior round trip. Without the explicit oids, a standings or
+  days query issued as the very first query on a fresh client serialises the array as bare,
+  brace-less scalar text and Postgres rejects it as a malformed array literal; the `::text[]` and
+  `::int[]` casts already in the SQL do not help, because the fault is in the wire-format parameter,
+  not the SQL. Before the fix, production was safe only incidentally: `main.ts` calls
+  `waitForDatabase()` (a `SELECT 1`) before anything else, and that round trip happened to warm the
+  cache first. `tests/db/tiers.test.ts` pins this against a genuinely cold client and fails without
+  the fix.
 - **Size ceiling: 2,000 effective lines.** Passing it means something from SPEC.md §8 crept back in
-  (NFR-6). `src/` is currently 1,886 effective lines, leaving about 114 lines of headroom. Phase 4's
-  own budget is roughly 120 lines, so the remaining headroom is slightly under what Phase 4 is
-  budgeted. Count it the same way each time or the trend is meaningless:
+  (NFR-6). `src/` is currently 1,920 effective lines. Phase 4 spent 4 of the 84 that remained after
+  Phase 3, because its work was tests and documents rather than application logic, and because FR-11
+  was cut. SPEC.md §7's per-phase split was a rounded residual, not a costed estimate; the note added
+  there records this so the conflict is not rediscovered. Count it the same way each time or the
+  trend is meaningless:
 
   ```bash
   find src -name '*.ts' | xargs cat | grep -vE '^\s*$' | grep -vE '^\s*(//|/\*|\*|\*/)' | wc -l
@@ -181,3 +204,7 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
 test asserts today falls inside the window, so it will fail once the placeholder window expires.
 Guild `memberCount` values are also unverified: they are the denominator of every ranking, so a
 stale count silently distorts the whole competition.
+
+NFR-3 is met by the deployment target, so it is not observably satisfied until this bot's database
+exists on Tietokilta's shared PostgreSQL server. README's Deploy section lists what that change
+contains.
