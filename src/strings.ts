@@ -144,3 +144,28 @@ export const STALE_CHECK_IN =
 export const NOT_REGISTERED =
   "Start with your guild's link first, or send /start to pick a guild.";
 export const STANDINGS_FOOTER = "Everyone in the guild counts, logging or not.";
+
+/**
+ * FR-19. Appended to the pinned message when the bot could not pin it. The
+ * message itself keeps working and keeps updating unpinned (phase 2 design 3.2), so
+ * this is one line of explanation rather than an error state: the board makes
+ * the bot an admin when convenient and the next refresh pins it.
+ */
+export const PIN_NEEDS_ADMIN =
+  "Make me an admin with permission to pin, and I'll pin this to the top.";
+
+/** FR-18. Shown in a group the bot was added to without a guild in the link. */
+export const CHOOSE_GUILD_GROUP =
+  "Which guild is this chat for? An admin of this chat can pick.";
+
+/** FR-18. Answered to a non-admin who taps the guild picker in a group. */
+export const TOAST_ADMINS_ONLY = "Only an admin of this chat can set the guild.";
+
+/** FR-18. Confirms a binding, naming the guild so a wrong one is obvious. */
+export function chatBound(guildName: string): string {
+  return (
+    `This chat is now following <b>${escapeHtml(guildName)}</b>.\n\n` +
+    "Standings will appear here and stay updated. An admin can change the guild " +
+    "by opening the guild's link again."
+  );
+}

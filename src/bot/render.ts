@@ -1,5 +1,5 @@
 import { competitionRanks, progressBar, tierMinutes } from "../domain/scoring.ts";
-import { STANDINGS_FOOTER } from "../strings.ts";
+import { PIN_NEEDS_ADMIN, STANDINGS_FOOTER } from "../strings.ts";
 import { escapeHtml } from "../html.ts";
 import type { Tier } from "../config.ts";
 import type { GuildStanding, Neighbour } from "../db/standings.ts";
@@ -112,5 +112,55 @@ export function standingsMessage(input: StandingsInput): string {
     `<b>This week</b> · minutes per member\n<pre>${table(input.week)}</pre>\n\n` +
     `<b>Season</b>\n<pre>${table(input.season)}</pre>\n\n` +
     STANDINGS_FOOTER
+  );
+}
+
+/**
+ * FR-19. The pinned message is the same two tables /standings renders, through
+ * the same renderer, so the pinned number and the on-demand number can never
+ * disagree.
+ */
+export function pinnedStandings(input: StandingsInput & { pinFailed: boolean }): string {
+  const base = standingsMessage(input);
+  return input.pinFailed ? `${base}\n\n${PIN_NEEDS_ADMIN}` : base;
+}
+
+export interface MondayPostInput {
+  winnerName: string;
+  winnerPerMember: number;
+  guildName: string;
+  guildRank: number;
+  guildCount: number;
+  guildPerMember: number;
+  /** A share between 0 and 1, from participation(). Rendered as a percentage. */
+  participation: number;
+}
+
+/**
+ * FR-20. A new message rather than an edit, so it notifies. That contrast with
+ * the pinned message in the same chat is deliberate: the pin is ambient and
+ * silent, and this is the one interruption per week.
+ *
+ * Framed as a fresh start rather than a report card. SPEC.md section 11 rates a
+ * guild disengaging from a hopeless position as the competition's top risk, so
+ * the guilds at the bottom must read an opening here rather than a fourth
+ * consecutive notice that they are losing. Nothing in the copy varies on how
+ * badly the reader's guild did.
+ *
+ * The participation figure is about the reader's own guild, not the winner's
+ * (phase 2 design 4.3): it is the number the reader can actually change this week.
+ *
+ * Guild names come from config.ts and are trusted today; escaped defensively,
+ * because this message reaches a whole guild chat.
+ */
+export function mondayPost(input: MondayPostInput): string {
+  const percent = Math.round(input.participation * 100);
+  return (
+    "<b>New week. Everyone back to zero.</b>\n\n" +
+    `Last week ${escapeHtml(input.winnerName)} took it, ` +
+    `${input.winnerPerMember.toFixed(1)} minutes per member.\n\n` +
+    `${escapeHtml(input.guildName)} finished ${ordinal(input.guildRank)} of ${input.guildCount}, ` +
+    `${input.guildPerMember.toFixed(1)}, with ${percent}% of the guild logging at least once.\n\n` +
+    "Nothing carries over. This week is open."
   );
 }

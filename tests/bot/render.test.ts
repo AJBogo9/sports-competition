@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { confirmation, meMessage, progressBlock, standingsMessage } from "../../src/bot/render.ts";
+import {
+  confirmation,
+  meMessage,
+  mondayPost,
+  pinnedStandings,
+  progressBlock,
+  standingsMessage,
+} from "../../src/bot/render.ts";
 import { reminderOff, reminderSet, welcome } from "../../src/strings.ts";
 import { WEEKLY_TARGET_MINUTES } from "../../src/config.ts";
+import type { GuildStanding } from "../../src/db/standings.ts";
 
 describe("progressBlock (FR-12)", () => {
   test("shows minutes against the target with a bar, as in the prototype", () => {
@@ -257,5 +265,78 @@ describe("registration copy", () => {
   test("escapes an ampersand in the guild name in both reminder messages", () => {
     expect(reminderSet(20, "A & B")).toContain("A &amp; B");
     expect(reminderOff("A & B")).toContain("A &amp; B");
+  });
+});
+
+const WEEK: GuildStanding[] = [
+  { slug: "inkubio", name: "Inkubio", minutes: 9640, perMember: 24.1 },
+  { slug: "prodeko", name: "Prodeko", minutes: 14820, perMember: 22.8 },
+];
+
+describe("pinnedStandings (FR-19)", () => {
+  test("renders the same tables as /standings", () => {
+    const pinned = pinnedStandings({ week: WEEK, season: WEEK, pinFailed: false });
+    expect(pinned).toBe(standingsMessage({ week: WEEK, season: WEEK }));
+  });
+
+  // Phase 2 design 3.2. The live number is the valuable part and it works unpinned,
+  // so a missing right is one extra line, not a failure state.
+  test("adds one line when the bot could not pin", () => {
+    const pinned = pinnedStandings({ week: WEEK, season: WEEK, pinFailed: true });
+    expect(pinned).toStartWith(standingsMessage({ week: WEEK, season: WEEK }));
+    expect(pinned).toContain("admin");
+  });
+});
+
+describe("mondayPost (FR-20)", () => {
+  const input = {
+    winnerName: "Inkubio",
+    winnerPerMember: 24.1,
+    guildName: "Prodeko",
+    guildRank: 2,
+    guildCount: 9,
+    guildPerMember: 22.8,
+    participation: 0.31,
+  };
+
+  test("names last week's winner and the reader's own guild", () => {
+    const post = mondayPost(input);
+    expect(post).toContain("Inkubio");
+    expect(post).toContain("24.1");
+    expect(post).toContain("Prodeko");
+    expect(post).toContain("2nd");
+    expect(post).toContain("22.8");
+  });
+
+  // Phase 2 design 4.3. The percentage is about the reader's guild, not the winner's.
+  test("states the reader's guild participation as a whole percentage", () => {
+    expect(mondayPost(input)).toContain("31%");
+  });
+
+  // FR-20's acceptance test: it must state that the new week starts at zero.
+  test("says the week resets", () => {
+    const post = mondayPost(input);
+    expect(post).toContain("zero");
+    expect(post).toContain("Nothing carries over");
+  });
+
+  // SPEC.md section 11 rates a guild disengaging from a hopeless position as
+  // the top risk, and this post is the fresh start that answers it. A guild
+  // that is last must still read as having an opening.
+  test("reads the same for a guild that finished last", () => {
+    const post = mondayPost({ ...input, guildName: "Athene", guildRank: 9, guildPerMember: 4.2 });
+    expect(post).toContain("9th");
+    expect(post).toContain("Nothing carries over");
+  });
+
+  test("renders the winning guild reading its own post", () => {
+    const post = mondayPost({ ...input, guildName: "Inkubio", guildRank: 1, guildPerMember: 24.1 });
+    expect(post).toContain("1st");
+  });
+
+  // First names and guild names reach other users, so interpolation is escaped.
+  test("escapes a guild name containing markup", () => {
+    const post = mondayPost({ ...input, guildName: "<b>x</b>" });
+    expect(post).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
 });
