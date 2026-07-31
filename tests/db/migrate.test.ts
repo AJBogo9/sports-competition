@@ -6,13 +6,17 @@ const sql = await freshDatabase("migrate");
 afterAll(async () => { await sql.end(); });
 
 describe("migrate", () => {
-  test("creates the three tables from SPEC.md section 6", async () => {
+  // FR-18 (Phase 2 task 1) added chats onto the three tables SPEC.md section 6
+  // originally specified, so this list grows by one table per migration.
+  test("creates the tables from SPEC.md section 6 plus chats from FR-18", async () => {
     const tables = await sql<{ table_name: string }[]>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = current_schema()
       ORDER BY table_name
     `;
-    expect(tables.map((t) => t.table_name)).toEqual(["days", "guilds", "migrations", "users"]);
+    expect(tables.map((t) => t.table_name)).toEqual([
+      "chats", "days", "guilds", "migrations", "users",
+    ]);
   });
 
   test("is idempotent, so a restart applies nothing (NFR-5)", async () => {
