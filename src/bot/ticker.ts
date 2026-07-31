@@ -3,7 +3,7 @@ import type { Sql } from "postgres";
 import { COMPETITION_START } from "../config.ts";
 import { calendar } from "../db/calendar.ts";
 import { listChats, recordMondayPost, recordPin, unbindChat, type Chat } from "../db/chats.ts";
-import { participation, standings } from "../db/standings.ts";
+import { participation, standings, type GuildStanding } from "../db/standings.ts";
 import { competitionRanks, isInWindow, previousWeek } from "../domain/scoring.ts";
 import { dayBefore, shouldPostMonday } from "../domain/scheduling.ts";
 import { mondayPost, pinnedStandings } from "./render.ts";
@@ -17,23 +17,52 @@ const PIN_REFRESH_MS = 15 * 60_000;
  * lands here too: the chat_id changes, the old one stops resolving, and the
  * board re-adds via the link. Not migrated silently, because the new id
  * arrives on a field the bot may never see if it was down at the time.
+ *
+ * Deliberately narrow: only a 403 and the supergroup-upgrade 400 qualify,
+ * matching the failure table in phase 2 design 6 exactly. A generic "chat not
+ * found" is Telegram's catch-all for "this id did not resolve", which a
+ * transient lookup failure can also produce, and treating it as gone-for-good
+ * would delete a perfectly good chat's row on a false positive. Worse, a
+ * later rebind resets last_monday_week to the current week (phase 2 design
+ * 2.4), which would silently suppress that week's Monday post with no signal
+ * anywhere. A bot actually removed from a chat gets a 403, which stays in
+ * this set, so nothing real goes unhandled by dropping the generic case; it
+ * is logged as an ordinary error instead and the next tick retries.
  */
 function isGone(error: unknown): boolean {
   if (!(error instanceof GrammyError)) return false;
   const description = error.description.toLowerCase();
-  return (
-    error.error_code === 403 ||
-    description.includes("chat not found") ||
-    description.includes("upgraded to a supergroup")
-  );
+  return error.error_code === 403 || description.includes("upgraded to a supergroup");
 }
 
-/** FR-19. Render, then edit only if the text actually changed. */
-async function refreshPin(bot: Bot, sql: Sql, chat: Chat, weekStart: string, today: string) {
-  const [week, season] = await Promise.all([
-    standings(sql, weekStart, today),
-    standings(sql, COMPETITION_START, today),
-  ]);
+/**
+ * Telegram's 400 when the message the pin refresh is editing has itself been
+ * deleted: an admin deleted it, or the chat's auto-delete timer expired it.
+ * This is not the chat being gone (isGone() above): the chat is fine, only
+ * the stored message reference is stale. Kept as its own check, separate from
+ * isGone(), so the two failures get different recoveries: forgetting the
+ * message id (refreshPin) rather than deleting the chat's row.
+ */
+function isMessageGone(error: unknown): boolean {
+  if (!(error instanceof GrammyError)) return false;
+  return error.description.toLowerCase().includes("message to edit not found");
+}
+
+/**
+ * FR-19. Render, then edit only if the text actually changed.
+ *
+ * week and season are computed once per tick by the caller and passed in
+ * (minor 3, fix round 1): neither query depends on the chat, so hoisting them
+ * above the per-chat loop turns what was 2 identical queries times 9 chats
+ * into 2 total.
+ */
+async function refreshPin(
+  bot: Bot,
+  sql: Sql,
+  chat: Chat,
+  week: readonly GuildStanding[],
+  season: readonly GuildStanding[],
+): Promise<void> {
   const text = pinnedStandings({ week, season, pinFailed: chat.pinFailed });
 
   if (chat.pinnedMessageId === null) {
@@ -59,11 +88,28 @@ async function refreshPin(bot: Bot, sql: Sql, chat: Chat, weekStart: string, tod
   if (unchanged && !chat.pinFailed) return;
 
   if (!unchanged) {
-    // message_id is an int32 in the Bot API and grammY types it as a number.
-    // Unlike chat_id it is small by construction, so the conversion is safe.
-    await bot.api.editMessageText(chat.chatId, Number(chat.pinnedMessageId), text, {
-      parse_mode: "HTML",
-    });
+    try {
+      // message_id is an int32 in the Bot API and grammY types it as a
+      // number. Unlike chat_id it is small by construction, so the
+      // conversion is safe.
+      await bot.api.editMessageText(chat.chatId, Number(chat.pinnedMessageId), text, {
+        parse_mode: "HTML",
+      });
+    } catch (error) {
+      // Fix round 1, important 1. The referenced message can be deleted out
+      // from under the bot: an admin deletes it, or the chat's auto-delete
+      // timer expires it. That is not the chat being gone, so it must not
+      // unbind (isGone() does not match this description at all). Nulling
+      // pinned_message_id instead makes the next refresh retake the
+      // "no pinned message yet" branch above and send and pin a fresh
+      // message, rather than leaving this chat stuck on the same 400 every
+      // 15 minutes forever with no path back.
+      if (isMessageGone(error)) {
+        await recordPin(sql, chat.chatId, { messageId: null, text, pinFailed: false });
+        return;
+      }
+      throw error;
+    }
   }
 
   // Retry the pin on every refresh until it takes, so the board's fix applies
@@ -78,6 +124,9 @@ async function tryPin(bot: Bot, chatId: string, messageId: string): Promise<bool
   try {
     // disable_notification: FR-19 requires the pinned standings to generate no
     // notification, and pinning notifies by default.
+    // message_id is an int32 in the Bot API and grammY types it as a number;
+    // unlike chat_id it is small by construction, so this conversion is safe
+    // (fix round 1, minor 1, matching the sibling conversion above).
     await bot.api.pinChatMessage(chatId, Number(messageId), { disable_notification: true });
     return true;
   } catch (error) {
@@ -86,7 +135,13 @@ async function tryPin(bot: Bot, chatId: string, messageId: string): Promise<bool
   }
 }
 
-/** FR-20. A new message, so it notifies. Exactly once per chat per week. */
+/**
+ * FR-20. A new message, so it notifies. Exactly once per chat per week: the
+ * ledger (chats.last_monday_week, updated by recordMondayPost below) makes
+ * that guarantee hold across restarts, and startTicker's running guard makes
+ * it hold across overlapping ticks within one process (fix round 1,
+ * critical). Neither guarantee alone was sufficient.
+ */
 async function sendMondayPost(bot: Bot, sql: Sql, chat: Chat, weekStart: string) {
   // Last week runs from the previous Monday to the Sunday before this one.
   const lastWeekStart = previousWeek(weekStart);
@@ -133,46 +188,105 @@ async function sendMondayPost(bot: Bot, sql: Sql, chat: Chat, weekStart: string)
  * Rejected: two intervals, one per feature. One loop asking two questions has
  * one lifecycle to stop cleanly and one place the calendar is read.
  *
- * Everything that must survive a restart is on the chats row. The only
- * in-memory state is the last pin refresh, and losing it costs one extra
- * render that the unchanged-text check turns into a no-op.
+ * Everything that must survive a restart is on the chats row. The in-memory
+ * state is the last pin refresh timestamp and whether a tick is currently
+ * running; losing either on restart is harmless. Losing the timestamp costs
+ * one extra render that the unchanged-text check (2.3) turns into a no-op.
+ * Losing the running flag just resets it to not-running, which is correct.
+ *
+ * Guaranteed: at most one tick's worth of work runs at a time (the running
+ * guard below), each chat's failure is isolated from every other chat's, and
+ * a chat found to be permanently gone is unbound without derailing the rest
+ * of that tick. NOT guaranteed by this file alone: a second OS process running
+ * the same ticker against the same database would still double-post, because
+ * the running flag is per-process memory, not a database lock. That case is
+ * out of scope per phase 2 design 6's failure table ("Two processes running
+ * at once"), which rules it out at the deployment level (NFR-2: one machine,
+ * one process) rather than in code.
  */
 export function startTicker(bot: Bot, sql: Sql): () => void {
   let lastPinRefresh = 0;
 
+  // Fix round 1, critical. setInterval starts a new tick every 60 seconds
+  // regardless of whether the previous one finished, and grammY's default
+  // per-call API timeout is 500 seconds, so a single slow Telegram call can
+  // leave several ticks in flight underneath it at once. Concurrent ticks
+  // each read chat.lastMondayWeek before any of them has called
+  // recordMondayPost, so each one independently decides the Monday post is
+  // owed and each one sends it: the chats.last_monday_week ledger only
+  // guarantees "exactly once per week" across restarts, not across
+  // overlapping ticks in the same process, and this flag is what closes that
+  // gap. A skipped tick is not silently dropped: shouldPostMonday and the pin
+  // refresh both operate on live state (the calendar, the chats table), so
+  // the next tick a minute later picks up exactly where a skipped one would
+  // have started, at the cost of the post landing up to a minute later than
+  // it otherwise would (still within phase 2 design 4.4's "late rather than
+  // never" tolerance).
+  let running = false;
+
   async function tick(): Promise<void> {
-    const { today, weekStart, hour } = await calendar(sql);
-    // Phase 2 design 4.7. Inert outside the competition, which leaves the closing
-    // numbers pinned as the resting state of a competition that is over.
-    if (!isInWindow(today)) return;
+    if (running) {
+      // Logged rather than silent: a tick that is still running a full
+      // minute after it started is a signal worth seeing (a hung API call,
+      // a slow query), even though skipping is the safe response to it.
+      console.warn("tick skipped: previous tick is still running");
+      return;
+    }
+    running = true;
+    try {
+      const { today, weekStart, hour } = await calendar(sql);
+      // Phase 2 design 4.7. Inert outside the competition, which leaves the closing
+      // numbers pinned as the resting state of a competition that is over.
+      if (!isInWindow(today)) return;
 
-    const chats = await listChats(sql);
-    const refreshPins = Date.now() - lastPinRefresh >= PIN_REFRESH_MS;
-    if (refreshPins) lastPinRefresh = Date.now();
+      const chats = await listChats(sql);
+      const refreshPins = Date.now() - lastPinRefresh >= PIN_REFRESH_MS;
+      if (refreshPins) lastPinRefresh = Date.now();
 
-    for (const chat of chats) {
-      // One chat's failure must not stop the other eight and must not kill the
-      // interval, so every chat is isolated.
-      try {
-        if (refreshPins) await refreshPin(bot, sql, chat, weekStart, today);
-        if (
-          shouldPostMonday({
-            weekStart,
-            lastPosted: chat.lastMondayWeek,
-            localDate: today,
-            localHour: hour,
-          })
-        ) {
-          await sendMondayPost(bot, sql, chat, weekStart);
+      // Fix round 1, minor 3. Neither query depends on the chat, only on
+      // weekStart/today, which are the same for every chat this tick, so
+      // they are computed once here instead of once per chat inside
+      // refreshPin. Skipped entirely when this tick is not a pin-refresh
+      // tick, since nothing below would read them.
+      const [week, season]: [readonly GuildStanding[], readonly GuildStanding[]] = refreshPins
+        ? await Promise.all([standings(sql, weekStart, today), standings(sql, COMPETITION_START, today)])
+        : [[], []];
+
+      for (const chat of chats) {
+        // One chat's failure must not stop the other eight and must not kill the
+        // interval, so every chat is isolated.
+        try {
+          if (refreshPins) await refreshPin(bot, sql, chat, week, season);
+          if (
+            shouldPostMonday({
+              weekStart,
+              lastPosted: chat.lastMondayWeek,
+              localDate: today,
+              localHour: hour,
+            })
+          ) {
+            await sendMondayPost(bot, sql, chat, weekStart);
+          }
+        } catch (error) {
+          if (isGone(error)) {
+            console.warn(`chat ${chat.chatId} is gone, unbinding`);
+            try {
+              await unbindChat(sql, chat.chatId);
+            } catch (unbindError) {
+              // Fix round 1, minor 2. Guarded so a failure here (e.g. the
+              // database connection dropping) cannot escape this per-chat
+              // catch: unguarded, it would propagate out of the for loop and
+              // abandon every remaining chat this tick, exactly the failure
+              // per-chat isolation exists to prevent.
+              console.error(`failed to unbind chat ${chat.chatId}`, unbindError);
+            }
+            continue;
+          }
+          console.error(`tick failed for chat ${chat.chatId}`, error);
         }
-      } catch (error) {
-        if (isGone(error)) {
-          console.warn(`chat ${chat.chatId} is gone, unbinding`);
-          await unbindChat(sql, chat.chatId);
-          continue;
-        }
-        console.error(`tick failed for chat ${chat.chatId}`, error);
       }
+    } finally {
+      running = false;
     }
   }
 
