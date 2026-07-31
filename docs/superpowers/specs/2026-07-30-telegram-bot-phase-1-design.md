@@ -149,7 +149,7 @@ per-capita denominator.
 `/start prodeko` on a fresh user writes the row and replies in one message:
 
 ```
-Moi Andreas. You're in, for Prodeko.
+Hi Andreas. You're in, for Prodeko.
 
 One tap a day, that's it. Most people forget by week three
 unless something asks, so: should I?

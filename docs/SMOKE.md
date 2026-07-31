@@ -46,14 +46,23 @@ contain today. Nothing here is done until every box is ticked.
 - [ ] Log a day, re-log the same day at a different tier, then tap Undo, and
       confirm the message says the entry was put back (not removed) and that
       the weekly total matches what it was before the second log
-- [ ] Send `/log`, leave the message untapped overnight, then the next day tap
-      a tier on it and confirm the write lands on the day the prompt names
-      (today when it was sent), not the day it was actually sent. Repeat with
-      "Log yesterday instead" on a message from the day before: confirm it
-      binds to yesterday relative to when you tap it, not to the date baked
-      into the button when the message was sent. This is the one check here
-      that requires waiting a day; nothing same-session can catch a stale
-      message writing to the wrong day
+- [ ] Send `/log` on day N, leave the message untapped overnight, then on day
+      N+1 tap a tier on it. Confirm the write lands on day N, the day the
+      prompt named, and not on day N+1, the day you tapped. This step and the
+      next pull in opposite directions on purpose: a tier button means "the
+      date this prompt was for" and keeps its payload date, while "Log
+      yesterday instead" means "the day before now" and must ignore its
+      payload date entirely
+- [ ] On that same day-old message from day N, tap "Log yesterday instead"
+      and then a tier. Confirm it writes day N, which is yesterday relative to
+      the tap, and not day N-1, the date baked into the button when the
+      message was sent. This and the step above are the only checks here that
+      require waiting a day; nothing same-session can catch a stale message
+      writing to the wrong day
+- [ ] Optional, costs a second day: keep a `/log` message from day N untapped
+      until day N+2 and tap a tier. Its payload date is now neither today nor
+      yesterday, so it must be refused with a message saying so, and nothing
+      may be written. This is the only route to that refusal in normal use
 
 ## Reading
 

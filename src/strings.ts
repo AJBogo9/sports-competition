@@ -129,6 +129,18 @@ export const UNDO_DONE = "Removed.";
 export const UNDO_RESTORED = "Put back.";
 export const OUTSIDE_WINDOW =
   "That date is outside the competition, so it wouldn't count. Nothing was saved.";
+/**
+ * The other half of the FR-26 refusal in checkin.ts: a date that is inside the
+ * competition but is no longer today or yesterday, which is what a check-in
+ * message left untapped for two days carries. OUTSIDE_WINDOW was reused here
+ * and told the user the date was outside the competition when it was not.
+ *
+ * A forged future date reaches this string too and is described wrongly by it.
+ * Accepted deliberately: no real client can produce one, and a third string
+ * would spend copy on a case only a hand-built callback payload can reach.
+ */
+export const STALE_CHECK_IN =
+  "That check-in is from an earlier day, so it can no longer be logged. Send /log to check in for today. Nothing was saved.";
 export const NOT_REGISTERED =
   "Start with your guild's link first, or send /start to pick a guild.";
 export const STANDINGS_FOOTER = "Everyone in the guild counts, logging or not.";

@@ -17,6 +17,7 @@ import {
   CHECK_IN_PROMPT_YESTERDAY,
   NOT_REGISTERED,
   OUTSIDE_WINDOW,
+  STALE_CHECK_IN,
   TIER_LABELS,
   TOAST_LOGGED,
   TOAST_PUT_BACK,
@@ -154,7 +155,12 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
         (callback.date !== today && callback.date !== yesterday)
       ) {
         await ctx.answerCallbackQuery();
-        await ctx.editMessageText(OUTSIDE_WINDOW);
+        // Two distinct refusals share this guard, so they must not share a
+        // message: a date genuinely outside the competition, and a date
+        // inside it that is only stale. Telling someone their date is
+        // outside the competition when it is not sends them looking for a
+        // problem that does not exist.
+        await ctx.editMessageText(isInWindow(callback.date) ? STALE_CHECK_IN : OUTSIDE_WINDOW);
         return;
       }
 
@@ -194,7 +200,8 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
         (callback.date !== today && callback.date !== yesterday)
       ) {
         await ctx.answerCallbackQuery();
-        await ctx.editMessageText(OUTSIDE_WINDOW);
+        // Same split as the log path above.
+        await ctx.editMessageText(isInWindow(callback.date) ? STALE_CHECK_IN : OUTSIDE_WINDOW);
         return;
       }
 
