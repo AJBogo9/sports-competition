@@ -154,10 +154,12 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
   permissive as `encode` is: a handler that builds a payload by hand rather than through `encode`
   will have it rejected, which is the intended direction.
 - **The compose `db` service is not production and its volume is not the competition's data.** The
-  real database is on Tietokilta's shared Azure PostgreSQL server, which is also what makes NFR-3
-  true: that server's databases are dumped and shipped off-site nightly by infrastructure outside
-  this repository. `tests/db/restore.test.ts` is this repository's half, and it uses real databases
-  rather than `freshDatabase()` schemas because the backup it protects dumps per database.
+  intended home for the real database is Tietokilta's shared Azure PostgreSQL server, which is what
+  will satisfy NFR-3: that server's databases are dumped and shipped off-site nightly by
+  infrastructure outside this repository. Until that move happens there is no off-machine backup at
+  all, so a compose volume is the only copy and is not one anybody should be relying on.
+  `tests/db/restore.test.ts` is this repository's half of NFR-3, and it uses real databases rather
+  than `freshDatabase()` schemas because the backup it protects dumps per database.
 - **`tiers.ts` passes explicit Postgres oids to `sql.array()`** (1009 for `text[]`, 1007 for
   `int4[]`), and this is load-bearing rather than decorative. postgres.js resolves an array
   parameter's wire type at query *construction* time, from a per-client cache that is only populated
