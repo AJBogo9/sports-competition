@@ -124,6 +124,15 @@ non-admin who opens the link is told an admin has to confirm, and the picker sta
 depend on the guild, and the next refresh re-renders it with the new guild's line highlighted.
 `last_monday_week` is not reset, so rebinding cannot be used to trigger a second Monday post.
 
+**Rebinding goes through the link only. The picker binds an unbound chat and nothing else.**
+Telegram delivers `my_chat_member` before the `/start <slug>` message, so on the primary path the
+bot posts the picker and then binds a moment later, leaving a live nine-guild keyboard sitting in a
+correctly bound chat. Inline keyboards do not expire, and the process holds no state that could
+retract one (NFR-5), so that message is a permanent control that re-points the chat on one tap,
+months later, from an admin who has forgotten what it was. A picker whose callback refuses to act
+on an already-bound chat is inert instead, and the link remains a complete rebinding path. The
+refusal names the current guild, so an admin who genuinely wants to change it learns how.
+
 **Unbinding.** `my_chat_member` moving to `left` or `kicked` deletes the row. So does a `403` or a
 "chat not found" while editing a pin, which self-heals a chat the bot was removed from while the
 process was down, since that `my_chat_member` update expires from Telegram's 24-hour retention.
