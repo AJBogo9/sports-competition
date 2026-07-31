@@ -41,7 +41,7 @@ uses a throwaway password.
   useful context on the machine that has them, not because you can expect to find them.
 - [docs/SMOKE.md](docs/SMOKE.md) is the manual checklist. It is the *only* acceptance basis for
   the Telegram-facing files that have no automated tests by design: `registration.ts`,
-  `checkin.ts`, `reports.ts`, `group.ts`, and the Telegram calls inside `ticker.ts`.
+  `checkin.ts`, `reports.ts`, `group.ts`, `reminders.ts`, and the Telegram calls inside `ticker.ts`.
 - [prototype/bot-flows.html](prototype/bot-flows.html) is the screen-by-screen mockup. Rendering
   details (keyboard order, copy, the 10-slot bar) trace to it.
 
@@ -67,12 +67,13 @@ config.ts -> domain/ (pure) -> db/ (SQL) -> bot/handlers -> bot/render.ts (pure)
   shared config-backed tier-minutes CTE used by `standings.ts` and `days.ts`.
 - `src/bot/*`: `index.ts` builds the bot and installs handlers in order, `callbacks.ts` is the
   callback-data codec, `render.ts` is pure formatting, `strings.ts` (at `src/`) holds all copy.
-  `group.ts` binds a chat to a guild (FR-18), and `ticker.ts` is the 60-second loop that refreshes
-  the pinned standings and posts the Monday message (FR-19, FR-20).
+  `group.ts` binds a chat to a guild (FR-18), `reminders.ts` is `/remind` and its callbacks
+  (FR-21 to FR-24), and `ticker.ts` is the 60-second loop that refreshes the pinned standings,
+  posts the Monday message (FR-19, FR-20) and sends the daily reminders (FR-21).
 
 Handlers register `callback_query:data` listeners that fall through via `next()`, so **install
-order in `createBot` matters**: registration, then check-in, then reports, then a catch-all that
-answers unclaimed callbacks.
+order in `createBot` matters**: the blocked-clearing middleware first, then group, registration,
+check-in, reports, reminders, then a catch-all that answers unclaimed callbacks.
 
 **Phases 1, 2 and 3 are built** (registration, `/log`, `/me`, `/standings`, the group chat
 binding, the pinned standings, the Monday post, the daily reminder with its five-ignore
