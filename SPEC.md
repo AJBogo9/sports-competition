@@ -528,7 +528,7 @@ weekly and season standings, streaks and tags were added.
 residual, not a costed estimate. The table has no row for tags and none for backups, its rows sum to
 1,305, and the phase split sums to 1,350. Phase 4's 120 in particular was written while the weekly
 streak was still unbuilt, and Phases 1 and 2 have since spent it. Actual figures: 1,916 effective
-lines after Phase 3, about 1,921 after Phase 4.
+lines after Phase 3, 1,920 after Phase 4.
 
 ---
 
@@ -595,9 +595,11 @@ state. That is a schema change of roughly 40 to 60 lines against a ceiling (NFR-
 lines of headroom at the time, with Phase 4 already budgeted at 120 of those. Re-picking the hour is
 two taps.
 
-**Q5. FR-11's optional tag is cut.** *Decided 2026-07-31.* FR-11 is the only `MAY` in section 5;
-every other requirement is `MUST` or `SHOULD`. Cutting it exercises an option this specification
-granted rather than deviating from it.
+**Q5. FR-11's optional tag is cut.** *Decided 2026-07-31.* FR-11 is the only requirement in section
+5 whose substance is entirely optional. FR-15 also contains a `MAY`, but as a permission carved out
+of a prohibition: it MUST NOT expose a global individual leaderboard, and MAY show immediate
+neighbours. FR-11 is a `MAY` end to end. Cutting it exercises an option this specification granted
+rather than deviating from it.
 
 Four reasons. It was never designed: [prototype/bot-flows.html](prototype/bot-flows.html) has no tag
 screen, so building it means inventing one. It serves none of the four success criteria in section

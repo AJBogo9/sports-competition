@@ -68,10 +68,11 @@ spent on something binding.
 
 ## 2. Ruling: FR-11 is cut, not deferred
 
-FR-11 is the only `MAY` in SPEC.md §5. Every other requirement is `MUST` or `SHOULD`, and §5 states
-the hierarchy in its own preamble. Cutting it exercises an option the specification granted rather
-than deviating from it, which is why this is recorded as a decided question (§9 Q5) rather than as a
-deviation.
+FR-11 is the only requirement in SPEC.md §5 whose substance is entirely optional. FR-15 also
+contains a `MAY`, but as a permission carved out of a prohibition: it MUST NOT expose a global
+individual leaderboard, and MAY show immediate neighbours. FR-11 is a `MAY` end to end. Cutting it
+exercises an option the specification granted rather than deviating from it, which is why this is
+recorded as a decided question (§9 Q5) rather than as a deviation.
 
 Four reasons, in the order they carry weight:
 
