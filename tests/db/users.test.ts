@@ -295,6 +295,22 @@ describe("users", () => {
     expect(row?.last_reminded_at).toBeNull();
   });
 
+  // Phase 3 design 3.4. The boundary test for hour == localHour. When a user
+  // picks an hour they are already inside, isWithinGrace treats it as already
+  // due, so they sit in their own grace window and must be stamped to avoid a
+  // reminder seconds later. 2026-07-28T17:15:00Z is 20:15 in Helsinki, which
+  // is UTC+3 in July.
+  test("choosing the current hour stamps it, so reminders do not fire immediately", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Now" });
+
+    await setReminderHour(sql, 1, 20, "2026-07-28T17:15:00Z");
+
+    const [row] = await sql<{ last_reminded_at: Date | null }[]>`
+      SELECT last_reminded_at FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.last_reminded_at).not.toBeNull();
+  });
+
   test("turning reminders off never stamps a send that did not happen", async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Off" });
 
