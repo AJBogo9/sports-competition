@@ -115,9 +115,16 @@ can only be confirmed there.
       control for it
 - [ ] Send `/start@<bot> inkubio` in the first group, still bound to Prodeko, as a non-admin. It
       must refuse, this time as a chat message rather than a toast, since a command is not a
-      callback. As an admin it must rebind the chat to Inkubio, and the pinned message must show
-      Inkubio's line on the next refresh. This is now the only rebinding path, so if it broke,
-      every already-bound chat would be stranded
+      callback. As an admin it must rebind: the proof is the confirmation reply that comes back
+      immediately, naming Inkubio ("This chat is now following Inkubio"). The pinned standings
+      are **not** evidence either way: they render the same competition-wide nine-guild table in
+      every chat, bound or not, to whichever guild, because the table is computed once per tick,
+      not once per chat, and the renderer takes no guild at all. Do not wait for the pin to change
+      after a rebind; it will not, and on a refresh where nothing else changed either, no Telegram
+      call happens at all. The only other guild-specific proof anywhere in this phase is the
+      following Monday post (below), which will name Inkubio, not Prodeko, as this chat's own
+      guild. This is now the only rebinding path, so if it broke, every already-bound chat would
+      be stranded
 - [ ] Open question, not a pass or fail: have an admin turn on "Remain anonymous" in a test group,
       so their messages show as sent by GroupAnonymousBot, then try both binding paths while
       posting anonymously: an unclaimed `/start@<bot> <slug>` and a tap on a guild picker. Record
@@ -131,12 +138,14 @@ can only be confirmed there.
 - [ ] Log something from a phone, wait for the next refresh, and confirm the pinned message's
       number changes **without** the chat showing as unread or producing a notification. This is
       FR-19's actual acceptance test
-- [ ] Remove the bot's pin permission, add it to a fourth group, and confirm the standings message
-      still appears and still updates, with one extra line asking to be made an admin. Then
-      promote the bot. The line is rendered from the pin state as it was *before* that refresh's
-      retry, so the retry re-pins the message on the very next refresh but the line itself only
-      clears on the refresh after that: confirm the message is genuinely pinned again within 15
-      minutes of promoting, and that the line is gone within 30 (two refreshes), not one
+- [ ] Remove the bot's pin permission, then add it to a fourth group. The first standings message
+      appears within 15 minutes, but it will **not** carry the "make me admin" line yet, even
+      though the pin attempt right after sending it already fails: the line is rendered from
+      `pinFailed` as it stood *before* that attempt, which for a brand new chat starts out false.
+      Confirm the line only appears on the refresh after that, up to 30 minutes after the bot
+      joined, not 15. Then promote the bot: by the same mechanism, confirm the pin itself is
+      restored within 15 minutes of promoting, and the line clears within 30 (two refreshes), not
+      one
 - [ ] Delete the bot's pinned standings message by hand (delete it, not unpin it), then log an
       activity from a test account so the rendered text actually changes. A refresh with nothing
       new to say is a no-op that never calls Telegram and so never discovers the message is gone,
