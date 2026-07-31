@@ -238,7 +238,16 @@ describe("restore fidelity, plain SQL format (scripts/dump.sh)", () => {
     const dump = await inContainer([
       "pg_dump", "-U", "bot", "-d", SOURCE_DB, "--clean", "--if-exists",
     ]);
-    expect(dump).toContain("COPY public.days");
+
+    // pg_dump emits the COPY header even for a zero-row table, followed straight by
+    // the "\." terminator, so the header alone would prove only that the table
+    // exists in the dumped schema. What has to be true here is that the dump
+    // carries rows: a dump that lost them would restore into an empty database and
+    // satisfy the deep equality below for entirely the wrong reason. FR-7 semantics
+    // (same-date tier replacement creates one row, not two) must survive the dump.
+    const copyBody = dump.split(/^COPY public\.days [^\n]*\n/m)[1] ?? "";
+    const dumpedDays = copyBody.split("\n\\.")[0]?.split("\n").filter((line) => line !== "") ?? [];
+    expect(dumpedDays).toHaveLength(6);
 
     await createDatabase(TARGET_DB);
 
@@ -251,7 +260,8 @@ describe("restore fidelity, plain SQL format (scripts/dump.sh)", () => {
       ],
       { cwd: REPO_ROOT, stdin: new TextEncoder().encode(dump), stdout: "pipe", stderr: "pipe" },
     );
-    const [stderr, code] = await Promise.all([
+    const [_stdout, stderr, code] = await Promise.all([
+      new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
       proc.exited,
     ]);
