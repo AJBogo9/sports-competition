@@ -54,6 +54,13 @@ export const TIER_ORDER: readonly Tier[] = ["short", "medium", "long", "rest"];
 /** SPEC.md section 4.2. The WHO guideline for adults 18 to 64. */
 export const WEEKLY_TARGET_MINUTES = 150;
 
+/**
+ * FR-20. Monday morning, in TIMEZONE. Monday because that is the temporal
+ * landmark where student gym attendance measurably rises, which is the whole
+ * reason the post exists on that day rather than Sunday night.
+ */
+export const MONDAY_POST_HOUR = 9;
+
 /** Design 4.1. One timezone for the whole competition, not one per user. */
 export const TIMEZONE = "Europe/Helsinki";
 
