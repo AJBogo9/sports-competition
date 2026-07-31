@@ -193,6 +193,31 @@ describe("resumeReminders (FR-22)", () => {
     expect(row?.ignored_streak).toBe(0);
     expect((await findUser(sql, 1))?.reminderHour).toBe(20);
   });
+
+  // Phase 3 design 3.4. setReminderHour and resumeReminders must agree on the
+  // no-instant-fire stamp, or the two routes back into reminders behave
+  // differently: a user whose stored hour has already passed today (the
+  // follow-up went out at that hour, days ago) must not be sent one seconds
+  // after tapping "Keep them", exactly as picking that hour fresh would not.
+  test("resuming after the hour has passed today stamps last_reminded_at", async () => {
+    await sql`UPDATE users SET ignored_streak = 6 WHERE telegram_id = 1`;
+    await resumeReminders(sql, 1, AT_2100);
+    const [row] = await sql<{ last_reminded_at: Date | null }[]>`
+      SELECT last_reminded_at FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.last_reminded_at).not.toBeNull();
+  });
+
+  // The other side of the same rule: an hour still to come today must not be
+  // stamped, or the user's first reminder back would be silently pushed a day.
+  test("resuming before the hour today leaves it free to fire this evening", async () => {
+    await sql`UPDATE users SET ignored_streak = 6 WHERE telegram_id = 1`;
+    await resumeReminders(sql, 1, AT_0830);
+    const [row] = await sql<{ last_reminded_at: Date | null }[]>`
+      SELECT last_reminded_at FROM users WHERE telegram_id = 1
+    `;
+    expect(row?.last_reminded_at).toBeNull();
+  });
 });
 
 describe("blocked (FR-23)", () => {

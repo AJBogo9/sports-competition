@@ -145,9 +145,37 @@ export async function recordReminder(
  * Deliberately not setReminderHour(sql, id, sameHour): that would need the
  * caller to read the hour back and write it unchanged, which is a lost update
  * waiting to happen and says something different from what the user asked for.
+ *
+ * Mirrors setReminderHour's phase 3 design 3.4 stamp, reading the existing
+ * reminder_hour column rather than taking it as a parameter, since this path
+ * never changes it. Without this, resuming after the hour has already passed
+ * today (the follow-up went out days ago, at the user's hour, so by the time
+ * they tap "Keep them" that hour is long gone for today) leaves
+ * last_reminded_at stale, and the next tick still finds them inside the
+ * once-per-day gate for today with the grace window open, sending a reminder
+ * seconds after they asked to be reminded. The two paths must agree, or
+ * resuming can fire immediately in a case picking the hour fresh never would.
+ *
+ * `at` pins a fixed instant for tests only, exactly as setReminderHour does.
  */
-export async function resumeReminders(sql: Sql, telegramId: number): Promise<void> {
-  await sql`UPDATE users SET ignored_streak = 0 WHERE telegram_id = ${telegramId}`;
+export async function resumeReminders(
+  sql: Sql,
+  telegramId: number,
+  at: string | null = null,
+): Promise<void> {
+  await sql`
+    UPDATE users
+       SET ignored_streak   = 0,
+           last_reminded_at = CASE
+             WHEN reminder_hour IS NOT NULL
+              AND reminder_hour <= EXTRACT(
+                    HOUR FROM (COALESCE(${at}::timestamptz, now()) AT TIME ZONE ${TIMEZONE})
+                  )::int
+             THEN COALESCE(${at}::timestamptz, now())
+             ELSE last_reminded_at
+           END
+     WHERE telegram_id = ${telegramId}
+  `;
 }
 
 /** FR-23. A 403 is recorded, and dueReminders never selects the row again. */
