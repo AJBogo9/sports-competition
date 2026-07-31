@@ -9,7 +9,9 @@ export interface MondayPostDecision {
   localDate: string;
   /** The hour in TIMEZONE, 0 to 23, from the SQL calendar. */
   localHour: number;
+  /** The hour to post on Monday; defaults to MONDAY_POST_HOUR from config. */
   postHour?: number;
+  /** The competition start date; defaults to COMPETITION_START from config. */
   competitionStart?: string;
 }
 

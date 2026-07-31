@@ -30,19 +30,19 @@ describe("shouldPostMonday (FR-20)", () => {
     expect(decide({ lastPosted: "2026-08-03" })).toBe(false);
   });
 
-  // Design 2.4.4. Late beats never: a bot that was down for all of Monday
+  // Phase 2 design 4.4. Late beats never: a bot that was down for all of Monday
   // posts when it comes back, rather than skipping the week in silence.
   test("posts on Tuesday when Monday was missed", () => {
     expect(decide({ localDate: "2026-08-04", localHour: 3 })).toBe(true);
   });
 
-  // Design 2.4.5. On the first Monday there is no last week to report, and the
+  // Phase 2 design 4.5. On the first Monday there is no last week to report, and the
   // generic path would announce a winner at 0.0 minutes per member.
   test("does not post on the competition's first Monday", () => {
     expect(decide({ weekStart: START, lastPosted: "2026-07-20", localDate: START })).toBe(false);
   });
 
-  // Design 2.4.5. The test is on the previous week's END, so a competition
+  // Phase 2 design 4.5. The test is on the previous week's END, so a competition
   // that starts mid-week still reports the partial week that happened.
   test("posts on the first Monday when the competition started mid-week", () => {
     expect(
@@ -54,7 +54,7 @@ describe("shouldPostMonday (FR-20)", () => {
     ).toBe(true);
   });
 
-  // Design 2.2.4. Binding sets lastPosted to the current week, so a chat bound
+  // Phase 2 design 2.4. Binding sets lastPosted to the current week, so a chat bound
   // on a Thursday is not owed a post for the week it was bound in.
   test("does not post for the week a chat was just bound in", () => {
     expect(decide({ lastPosted: "2026-08-03", localDate: "2026-08-06" })).toBe(false);
