@@ -25,17 +25,25 @@ export interface Neighbour {
  * SPEC.md section 6. Then `::float8` so the driver hands back a number rather
  * than a numeric string.
  *
- * `NOT u.blocked` is carried over from SPEC.md section 6 as written. It cannot
- * fire today, because nothing sets `blocked` until FR-23 lands in Phase 3, but
- * this is a blocking gate on that future commit, not a someday revisit: once
- * something sets `blocked`, this clause retroactively erases that user's past
- * activity from their guild's season total, so the pinned message publishes
- * the guild's score visibly dropping, which is impossible under this
- * project's derive-everything model (SPEC.md section 4.4) and would read to
- * several hundred people as data loss. `blocked` must gate outbound
- * messaging only, never scoring. The commit that first sets `blocked` MUST
- * also remove this clause here and the identical one in `participation()`
- * below.
+ * There is deliberately no `NOT u.blocked` here, which is a considered
+ * departure from the query printed in SPEC.md section 6. `blocked` gates
+ * outbound messaging and never scoring, and the three places it used to
+ * appear (here, `neighbours()` and `participation()`) were all removed
+ * together.
+ *
+ * Blocking the bot is a decision about being messaged. It does not remove
+ * anyone from their guild's roster, and SPEC.md section 4.3 scores a guild
+ * across its entire roster including everyone who never logs at all. Worse,
+ * the clause is retroactive: nothing sets `blocked` until FR-23 lands in
+ * Phase 3, and the moment it does, the first user who blocks the bot erases
+ * their whole season's activity from their guild's total. The pinned message
+ * then publishes that guild's score visibly dropping, which is impossible
+ * under this project's derive-everything model (SPEC.md section 4.4) and
+ * reads to several hundred people as data loss.
+ *
+ * Do not restore it from SPEC.md section 6 on sight. That same printed query
+ * also truncates its own division to zero, which is why the casts below
+ * depart from it too.
  *
  * The ORDER BY ends with g.slug as a tiebreaker to guarantee total ordering.
  * Guild names (g.name) are not unique in the schema, only slugs are the primary
@@ -55,7 +63,7 @@ export async function standings(
            COALESCE(SUM(t.minutes), 0)::int AS minutes,
            (COALESCE(SUM(t.minutes), 0)::numeric / g.member_count)::float8 AS "perMember"
     FROM guilds g
-    LEFT JOIN users u ON u.guild_slug = g.slug AND NOT u.blocked
+    LEFT JOIN users u ON u.guild_slug = g.slug
     LEFT JOIN days d ON d.telegram_id = u.telegram_id
                     AND d.date BETWEEN ${from}::date AND ${to}::date
     LEFT JOIN tier_minutes t ON t.tier = d.tier
@@ -69,6 +77,14 @@ export async function standings(
  * guild only. This is the permitted half of the requirement: there is no query
  * anywhere that returns a top-N list of individuals, and the three-row cap is
  * what keeps it that way.
+ *
+ * No `NOT u.blocked` here either, for the reason given on `standings()` above.
+ * This was the third and quietest of the three sites: it carried the clause
+ * with no note at all while the other two carried a warning, so a future
+ * Phase 3 change working from that warning would have fixed two of three and
+ * left this one. The symptom would have been smaller but the same in kind: a
+ * blocked guildmate silently vanishing from the "Around you" block, taking
+ * the reader's own displayed position with them.
  *
  * The ROW_NUMBER() ORDER BY ends with telegram_id as a tiebreaker to guarantee
  * total ordering. First names are not unique: two users named "Alex" who have
@@ -94,7 +110,7 @@ export async function neighbours(
       LEFT JOIN days d ON d.telegram_id = u.telegram_id
                       AND d.date BETWEEN ${from}::date AND ${to}::date
       LEFT JOIN tier_minutes t ON t.tier = d.tier
-      WHERE u.guild_slug = ${guildSlug} AND NOT u.blocked
+      WHERE u.guild_slug = ${guildSlug}
       GROUP BY u.telegram_id, u.first_name
     ), ranked AS (
       SELECT telegram_id, first_name, minutes,
@@ -155,12 +171,10 @@ export async function weeklyTotals(sql: Sql, telegramId: number): Promise<WeekTo
  * ::numeric before the division and ::float8 after, because Postgres integer
  * division would truncate 2 / 650 to 0.
  *
- * `NOT u.blocked` is carried over from the same clause in `standings()` and
- * `neighbours()`. This is a blocking gate, not a someday revisit: see the
- * note on `standings()` for why. The commit that first sets `blocked`
- * (FR-23, Phase 3) MUST also remove this clause here, or a guild's published
- * participation share retroactively drops the moment one of its members
- * blocks the bot, the same silent-drop failure described there.
+ * No `NOT u.blocked` here either, for the reason given on `standings()` above.
+ * On this query the clause was the most visible of the three: it would have
+ * dropped a guild's published participation share retroactively, in the
+ * Monday post, the moment one of its members blocked the bot.
  */
 export async function participation(
   sql: Sql,
@@ -171,7 +185,7 @@ export async function participation(
   const [row] = await sql<{ share: number }[]>`
     SELECT (COUNT(DISTINCT d.telegram_id)::numeric / g.member_count)::float8 AS share
     FROM guilds g
-    LEFT JOIN users u ON u.guild_slug = g.slug AND NOT u.blocked
+    LEFT JOIN users u ON u.guild_slug = g.slug
     LEFT JOIN days d ON d.telegram_id = u.telegram_id
                     AND d.date BETWEEN ${from}::date AND ${to}::date
     WHERE g.slug = ${guildSlug}

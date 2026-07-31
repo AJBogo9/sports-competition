@@ -269,3 +269,52 @@ describe("participation (FR-20)", () => {
     expect(participation(sql, "nonexistent", WEEK_FROM, WEEK_TO)).rejects.toThrow(/not found/);
   });
 });
+
+// The `blocked` column exists (migration 001, from SPEC.md section 6) and
+// nothing writes it until FR-23 lands in Phase 3, so these tests set it
+// directly. They are the executable form of a decision that used to live only
+// in a comment: blocking the bot is a decision about being messaged, and it
+// must never move a number.
+//
+// Every one of these passes trivially today, because nothing sets the column.
+// That is the point. They fail the moment someone restores `AND NOT u.blocked`
+// from the query printed in SPEC.md section 6, which is the realistic way this
+// regresses: that query is the source of truth's own text, it looks obviously
+// right, and the damage it does is invisible until a real user blocks the bot
+// mid-competition.
+describe("blocked users still count toward every score", () => {
+  beforeEach(async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Bob" });
+    await logDay(sql, 1, "2026-07-28", "long");   // 75
+    await logDay(sql, 2, "2026-07-28", "medium"); // 45
+    await sql`UPDATE users SET blocked = TRUE WHERE telegram_id = 1`;
+  });
+
+  // The worst of the three. Under the derive-everything model (SPEC.md
+  // section 4.4) a guild's season total is recomputed from days on every
+  // read, so excluding a blocked user does not stop counting them from now
+  // on: it retroactively deletes every minute they ever logged. The pinned
+  // message then publishes the guild's score dropping, in front of the whole
+  // guild, with no event to explain it.
+  test("standings keeps a blocked user's minutes", async () => {
+    const prodeko = (await standings(sql, WEEK_FROM, WEEK_TO))
+      .find((row) => row.slug === "prodeko");
+    expect(prodeko?.minutes).toBe(120);
+    expect(prodeko?.perMember).toBeCloseTo(120 / 650, 5);
+  });
+
+  // FR-20's participation share, which reaches the Monday post.
+  test("participation keeps a blocked user", async () => {
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
+  });
+
+  // The quietest of the three, and the one whose comment did not carry the
+  // warning the other two did. A blocked guildmate dropping out of the
+  // "Around you" block also shifts the reader's own position in it.
+  test("neighbours keeps a blocked guildmate", async () => {
+    const rows = await neighbours(sql, 2, "prodeko", WEEK_FROM, WEEK_TO);
+    expect(rows.map((row) => row.firstName)).toContain("Alice");
+    expect(rows.find((row) => row.isSelf)?.firstName).toBe("Bob");
+  });
+});
