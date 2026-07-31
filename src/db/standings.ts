@@ -34,10 +34,10 @@ export interface Neighbour {
  * Blocking the bot is a decision about being messaged. It does not remove
  * anyone from their guild's roster, and SPEC.md section 4.3 scores a guild
  * across its entire roster including everyone who never logs at all. Worse,
- * the clause is retroactive: nothing sets `blocked` until FR-23 lands in
- * Phase 3, and the moment it does, the first user who blocks the bot erases
- * their whole season's activity from their guild's total. The pinned message
- * then publishes that guild's score visibly dropping, which is impossible
+ * the clause is retroactive: FR-23 writes `blocked` as of Phase 3, so the
+ * first user who blocks the bot erases their whole season's activity from
+ * their guild's total. The pinned message then publishes that guild's score
+ * visibly dropping, which is impossible
  * under this project's derive-everything model (SPEC.md section 4.4) and
  * reads to several hundred people as data loss.
  *

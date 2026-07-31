@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun test                          # full suite (172 tests); DB tests need db-test running
+bun test                          # full suite (240 tests); DB tests need db-test running
 bun run test:db                   # starts the disposable db-test container, then bun test
 bun test tests/domain             # one directory
 bun test tests/db/standings.test.ts   # one file
@@ -32,6 +32,8 @@ uses a throwaway password.
   resolves what SPEC.md leaves open for Phase 1. Comments cite it as "design 4.x".
   [The Phase 2 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-2-design.md) does the
   same for the group chat, and its comments cite it as "phase 2 design N.N".
+  [The Phase 3 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-3-design.md) does the
+  same for reminders, and its comments cite it as "phase 3 design N.N".
 - `.superpowers/sdd/<date>-telegram-bot-phase-<n>/progress.md` is the per-phase build ledger: every
   finding, ruling and deferred item, in order. `HANDOVER.md` beside it is the state summary.
   **These are local-only.** `.superpowers/sdd/.gitignore` contains `*`, so they are not in the
@@ -72,11 +74,11 @@ Handlers register `callback_query:data` listeners that fall through via `next()`
 order in `createBot` matters**: registration, then check-in, then reports, then a catch-all that
 answers unclaimed callbacks.
 
-**Phase 1 and Phase 2 are built** (registration, `/log`, `/me`, `/standings`, the group chat
-binding, the pinned standings, the Monday post, Docker deploy). Phase 3 (reminders actually
-sending) and Phase 4 (tags, nightly backup) are not. SPEC.md §10 forbids starting a phase before
-the previous one works end to end, and neither phase's smoke run has been done yet
-(docs/SMOKE.md).
+**Phases 1, 2 and 3 are built** (registration, `/log`, `/me`, `/standings`, the group chat
+binding, the pinned standings, the Monday post, the daily reminder with its five-ignore
+auto-stop, `/remind`, 403 handling, Docker deploy). Phase 4 (tags, nightly backup) is not.
+SPEC.md §10 forbids starting a phase before the previous one works end to end, and **no phase's
+smoke run has been done yet** (docs/SMOKE.md).
 
 ## Invariants that are easy to break
 
@@ -132,9 +134,23 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
   final week's result (phase 2 design 4.8). Outside the window `standings(weekStart, today)` is an
   all-zero table, so relaxing the pin's gate to match the post's would overwrite the frozen final
   standings with zeroes in every guild chat.
+- **The reminder pass sits inside the ticker's window gate and outside its 15-minute pin refresh.**
+  Nested under `refreshPins` a reminder lands on a quarter-hour lattice instead of within a minute
+  of its hour; hoisted above the window gate it keeps asking people to log days FR-26 refuses to
+  store, for a week after the competition ends.
+- **A user paused by FR-22 does not resume by logging.** `responded` clears `ignored_streak` only
+  below the threshold. The follow-up asked for consent and got none, and logging is engagement with
+  the competition, not consent to be messaged. Only "Keep them" or `/remind` resumes, and both do it
+  by writing `ignored_streak` directly.
+- **`blocked` is written now (FR-23), so the no-`NOT u.blocked` rule above is live rather than
+  theoretical.** It also clears on any private-chat update, because a blocked user cannot send one.
+- **`setReminderHour` does three things, and each one is load-bearing:** sets `reminder_asked`,
+  resets `ignored_streak` (so `/remind` lifts a pause), and stamps `last_reminded_at` when the
+  chosen hour has already passed (so picking 20:00 at 21:00 does not fire seconds later).
 - **Size ceiling: 2,000 effective lines.** Passing it means something from SPEC.md §8 crept back in
-  (NFR-6). `src/` is currently 1,547 effective lines, leaving about 450 of headroom before Phase 3
-  needs to budget against the ceiling. Count it the same way each time or the trend is meaningless:
+  (NFR-6). `src/` is currently 1,886 effective lines, leaving about 114 lines of headroom. Phase 4's
+  own budget is roughly 120 lines, so the remaining headroom is slightly under what Phase 4 is
+  budgeted. Count it the same way each time or the trend is meaningless:
 
   ```bash
   find src -name '*.ts' | xargs cat | grep -vE '^\s*$' | grep -vE '^\s*(//|/\*|\*|\*/)' | wc -l
@@ -154,10 +170,9 @@ These are load-bearing. Each one has already caused or nearly caused a defect.
 - No em dashes or en dashes anywhere, including message copy.
 - Tests: one isolated Postgres schema per file via `freshDatabase("<name>")` from
   `tests/helpers/db.ts`, ended in `afterAll`. Give each file a unique bare-identifier name.
-- The handler files (`registration.ts`, `checkin.ts`, `reports.ts`, `group.ts`) and the Telegram
-  calls inside `ticker.ts` are untested by design. `domain/scheduling.ts`, the pure Monday-post
-  decision `ticker.ts` calls, is unit tested normally. Changes to the untested parts are verified
-  through `docs/SMOKE.md`, not unit tests.
+- The handler files (`registration.ts`, `checkin.ts`, `reports.ts`, `group.ts`, `reminders.ts`) and
+  the Telegram calls inside `ticker.ts` are untested by design. `domain/scheduling.ts` and
+  `domain/reminders.ts`, the pure decisions they call, are unit tested normally.
 
 ## Before a real competition
 

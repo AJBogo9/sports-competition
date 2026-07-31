@@ -242,3 +242,75 @@ obvious at a glance.
 - [ ] `scripts/dump.sh` writes a dump, `docker compose down -v` destroys the
       volume, `docker compose up -d` plus `scripts/restore.sh` brings the same
       standings back
+
+## Reminders (Phase 3)
+
+`src/bot/reminders.ts` and the reminder call inside `ticker.ts` have no
+automated tests by design, so this section is their entire acceptance basis.
+The decision logic underneath them is tested: `tests/domain/reminders.test.ts`
+covers the FR-22 state machine and `tests/db/reminders.test.ts` covers who is
+due. What is unverified until these boxes are ticked is the wiring.
+
+Run against a bot whose competition window contains today, on an account
+registered to a guild.
+
+### The daily send
+
+- [ ] `/remind`, pick an hour still to come today, and confirm a check-in
+      message arrives at that hour and is identical to the one `/log` produces
+      (FR-21, FR-6)
+- [ ] Tapping a tier on the reminder logs normally, edits in place into the
+      confirmation, and the progress bar is right (FR-5, FR-12)
+- [ ] On another day, log before the chosen hour, and confirm **nothing**
+      arrives at that hour (FR-21). This is the requirement's own acceptance
+      test and the one most worth waiting for
+- [ ] Log a rest day (`Not today`) before the hour, and confirm nothing arrives
+      either: a rest is a record (FR-8)
+- [ ] Pick an hour that has already passed today, and confirm no reminder fires
+      within the next few minutes (phase 3 design 3.4). It should arrive
+      tomorrow instead
+
+### Control (FR-24)
+
+- [ ] `/remind` appears in the private command menu, without needing help text
+- [ ] `/remind` shows the current hour when reminders are on, and shows they
+      are off when they are off
+- [ ] Turn reminders off at least an hour before a reminder is due, and confirm
+      nothing arrives at the hour. FR-24's own acceptance test is "a user who
+      turns reminders off at 19:00 receives nothing at 20:00"
+- [ ] Turn them back on and confirm the hour you pick is stored and shown
+- [ ] `/remind` in a group chat does nothing at all (it is private-chat only)
+
+### The follow-up (FR-22)
+
+Five consecutive ignored reminders take five days, so the count is set
+directly. That is a database statement against messaging state, not a code
+path: it writes no `days` row and no minute, so NFR-4 is untouched. There is
+still no seed command, debug route or simulation anywhere in the build.
+
+- [ ] With reminders on and nothing logged today, run
+      `UPDATE users SET ignored_streak = 5, last_reminded_at = NULL WHERE telegram_id = <you>;`
+      and confirm the next due hour produces the **follow-up**, not a sixth
+      check-in message
+- [ ] The follow-up names the way back to reminders in its own text, so an
+      ignored one still leaves a route (FR-22)
+- [ ] Tap `Keep them` and confirm it says reminders are back on **at the hour
+      you already had**, without asking you to choose again (FR-22)
+- [ ] Repeat the setup, tap `Turn them off` instead, and confirm `/remind`
+      then reports reminders as off
+- [ ] Repeat the setup, ignore the follow-up entirely, and confirm no further
+      reminder arrives the next day (FR-22: reminders stay paused)
+- [ ] Still paused, log a day with `/log`, and confirm reminders do **not**
+      resume the following day (phase 3 design 3.3). Then `/remind`, pick an
+      hour, and confirm they do
+
+### Blocking (FR-23)
+
+- [ ] Block the bot in Telegram, wait for a reminder to be due, and confirm the
+      log records the block and `users.blocked` is true
+- [ ] Confirm no further reminder is attempted while blocked
+- [ ] Unblock, send `/log`, and confirm `users.blocked` returns to false and
+      the reply arrives normally (phase 3 design 3.5)
+- [ ] Confirm the blocked user's minutes never left the standings at any point
+      in the above. This is the invariant with the largest blast radius in the
+      project: blocking gates messaging and never scoring

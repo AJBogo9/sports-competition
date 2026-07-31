@@ -56,7 +56,9 @@ describe("callback encoding", () => {
 
   // Offering the check-in again after an undo is a different intent from
   // switching the keyboard to yesterday, even though both re-render a
-  // keyboard. Keeping them distinct matters once Phase 3 sends check-ins.
+  // keyboard. The reminder pass sends the check-in message daily, so a payload
+  // that means "offer the check-in again" and one that means "switch to
+  // yesterday" are now both in live circulation.
   test("a checkin payload is distinct from a yesterday payload", () => {
     expect(encode({ kind: "checkin", date: "2026-07-30" }))
       .not.toBe(encode({ kind: "yesterday", date: "2026-07-30" }));
