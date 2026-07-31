@@ -1,0 +1,134 @@
+---
+title: "The competition"
+description: "The scoring model as a participant experiences it: four tiers, a weekly target, per-member guild ranking, and why nothing is ever totalled."
+---
+
+Before any code, the product. Every design decision in the repository is
+downstream of this model, so a change that looks harmless in code is often a
+change to the competition's rules.
+
+## What a person does
+
+Once a day, at an hour they chose, the bot sends one message: **"Moved today?"**
+Under it are four buttons.
+
+| Button label | Tier | Minutes credited |
+|---|---|---|
+| 15 to 30 min | `short` | 22 |
+| 30 to 60 min | `medium` | 45 |
+| 60+ min | `long` | 75 |
+| Not today | `rest` | 0 |
+
+The button says a **range** and the system credits a **single number** inside it.
+That gap is the whole point: the user is never asked to be precise, and the
+credited value is the same for everyone who taps the same button, so no amount of
+careful self-reporting can earn an advantage.
+
+The tap is the commit. There is no confirmation step, no duration field, no sport
+picker, and no tags. `SPEC.md` §8 records the sport taxonomy and MET-based
+scoring as explicitly rejected: they produce arguments about whether bouldering
+beats swimming, and the competition needs participation rather than precision.
+
+Three properties of this list are deliberate and easy to erode:
+
+- **Four options, one tap.** The whole product hinges on the daily cost being one
+  tap. Any fifth thing to decide is a change to that.
+- **Rest is a real record, not an absence.** FR-8. It suppresses the next day's
+  reminder and counts toward the guild's participation percentage, so an honest
+  rest day is rewarded rather than punished. A user who logs nothing at all is a
+  different state from a user who logged rest.
+- **The top tier is capped at 75 minutes.** Not because nobody trains longer, but
+  because the health benefit plateaus around 300 minutes a week and the cap bounds
+  dishonesty to roughly three times an honest report. See `src/config.ts:39-43`.
+
+## The personal target
+
+150 minutes a week, the WHO guideline for adults aged 18 to 64. Every
+confirmation message shows progress against it as a ten-slot bar.
+
+The target exists so there is a win available to everyone that does not require
+beating anybody. A person in the ninth-placed guild can still hit their own
+target every week, and the streak counter in `/me` counts exactly that.
+
+**The streak is counted in weeks, never days.** A daily streak would teach that a
+rest day is a failure, which contradicts the rest button existing at all. The
+current week counts toward the streak only once its target is already met, so a
+week still in progress never breaks a streak the user has not had time to extend
+yet (`src/domain/scoring.ts:75-97`).
+
+## How guilds are ranked
+
+**Minutes per member, across the guild's entire roster**, including every member
+who has never opened the bot.
+
+$$
+\text{score}_{\text{guild}} = \frac{\sum \text{minutes logged by registered members}}{\text{configured member count}}
+$$
+
+The denominator is the guild's real size from `src/config.ts`, not its number of
+registered users. This is the single most consequential choice in the model, and
+it has two consequences worth internalising before you change anything near it:
+
+1. **Activating a quiet member is worth more than pushing an active one harder.**
+   A guild cannot win by having ten very committed people. The strategy the
+   scoring rewards is recruitment inside the guild.
+2. **A wrong member count silently distorts everything.** It is a denominator, so
+   there is no error, no warning, and no visible symptom: just a guild that is
+   quietly ranked wrong all season. The counts in `src/config.ts` are carried over
+   from `SPEC.md` §1 and are **unverified**. See [Next season](../ops/next-season.tmd).
+
+Two tables are published, always in this order: **this week first, then the
+season**. That order is deliberate (FR-16). A guild sitting ninth for the season
+can still be winning the current week, and leading with the cumulative table
+would give the bottom guilds nothing but a repeated failure signal. `SPEC.md` §11
+rates a guild disengaging from a hopeless position as the competition's top risk.
+
+Ties share the best rank, so the table reads 1, 1, 3 rather than 1, 2, 3
+(`competitionRanks` in `src/domain/scoring.ts:33-49`). Before anyone has logged
+anything, every guild is jointly first rather than arbitrarily ordered.
+
+## What each surface shows
+
+| Surface | Who sees it | What it contains |
+|---|---|---|
+| Check-in message | one person, privately | the four tier buttons, plus "Log yesterday instead" |
+| Confirmation | one person, privately | minutes credited, weekly progress bar, Undo |
+| `/me` | one person, privately | weekly progress, streak, their guild's rank, and up to three "Around you" rows |
+| `/standings` | anyone, anywhere | the two guild tables. No personal data at all |
+| Pinned message | a guild chat | the same two tables, edited in place every 15 minutes, silently |
+| Monday post | a guild chat | last week's winner, the reader's guild's placing and participation share. The one interruption per week |
+
+**There is no individual leaderboard anywhere, and adding one is a defect** (FR-15,
+`SPEC.md` §8). The "Around you" block in `/me` is the permitted half of that
+requirement: the user plus at most one person either side of them, inside their
+own guild only, capped at three rows. No query in the codebase returns a top-N
+list of individuals, and the cap is what keeps it that way.
+
+This is also why `/me` refuses to answer in a group chat: the "Around you" block
+names other people. `/standings` is deliberately unguarded, because it carries
+only guild totals.
+
+## The competition window
+
+The competition runs between two dates in `src/config.ts`, inclusive, in
+`Europe/Helsinki`. Outside it, nothing is written at all (FR-26): a tap on a
+stale button lands on a refusal rather than on a row nobody will ever count.
+
+The window straddles the October clock change, which is why every date bucket in
+the system is computed by Postgres rather than by JavaScript date arithmetic. See
+[The database](../code/database.tmd).
+
+## Reminders, in one paragraph
+
+At registration the user is asked, once, whether they want a daily nudge and at
+what hour (17, 18, 20 or 21). If they decline, they are never asked again. If
+they accept, the bot sends the check-in message at that hour, and only if they
+have not already recorded that day. After **five consecutive ignored reminders**
+the daily send stops and the bot spends exactly one message asking whether to
+continue. If that goes unanswered too, the user is paused indefinitely.
+
+Crucially, **logging does not un-pause them**. The bot asked for consent and got
+none, and logging is engagement with the competition rather than consent to be
+messaged. Only tapping "Keep them" or running `/remind` resumes. This asymmetry is
+FR-22 read strictly, and it is easy to "fix" by accident. See
+[Invariants](../invariants.tmd).

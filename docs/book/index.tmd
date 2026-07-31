@@ -1,0 +1,74 @@
+---
+title: "Read this first"
+description: "What this book is for, who wrote it, and what deliberately lives somewhere else."
+---
+
+You have inherited a Telegram bot that runs an eight-week physical activity
+competition between Aalto University student guilds. It is small: about 1,950
+effective lines across 25 TypeScript files, two containers, one process, one
+database. It is also unusually opinionated for its size, and most of the
+opinions are load-bearing rather than stylistic.
+
+This book is the orientation the repository does not give you. It explains the
+shape of the thing, why each load-bearing decision is what it is, and how to run,
+change and debug it.
+
+## What is not here, on purpose
+
+The repository already documents itself well, and duplicating any of it would
+guarantee the copies drift apart. This book cites those documents rather than
+restating them.
+
+| Question | Where it is answered |
+|---|---|
+| What must the bot do? | `SPEC.md` §5, the numbered FR-1 to FR-27 and NFR-1 to NFR-6 list. **This is the source of truth.** |
+| Why is some obvious feature missing? | `SPEC.md` §8, "Rejected alternatives". Read it before adding anything. |
+| What was decided during each build phase? | `docs/superpowers/specs/*-phase-N-design.md`, four documents. Code comments cite them as "design 4.x" and "phase N design N.N". |
+| What evidence backs the scoring model? | `docs/evidence.md`, with primary citations and the claims that did not survive checking. |
+| How do I accept a phase as working? | `docs/SMOKE.md`, the manual checklist. It is the only acceptance basis for the Telegram-facing files. |
+| What does each screen look like? | `prototype/bot-flows.html`, **which has been deleted.** Several documents still link to it. Recover it with `git show 77507ee^:prototype/bot-flows.html`. See [Shape](orientation/shape.tmd). |
+| What will bite me editing a specific file? | `CLAUDE.md`, written for a reader already inside the code. |
+
+When this book and the code disagree, the code is right and this book has rotted.
+When this book and `SPEC.md` disagree about a requirement, `SPEC.md` is right.
+
+## How to read it, by what you came to do
+
+::: {.callout-tip}
+## Running next year's competition
+
+Read [The competition](orientation/the-competition.tmd) for the model, then go
+straight to [Next season](ops/next-season.tmd). [Configuration](code/config.tmd)
+explains why a single file edit recomputes all of history, which is the property
+the runbook depends on.
+:::
+
+::: {.callout-tip}
+## Changing or extending the code
+
+Read [Shape](orientation/shape.tmd), then [Invariants](invariants.tmd) before you
+touch anything. The invariants chapter is not general advice: every rule in it
+has already caused or nearly caused a defect, and each one is stated with the
+defect as evidence. Then read whichever layer chapter covers your change.
+:::
+
+::: {.callout-tip}
+## Debugging it in production
+
+[The ticker](code/ticker.tmd) explains everything that happens without a user
+action, which is where most confusing behaviour comes from.
+[Troubleshooting](ops/troubleshooting.tmd) is a symptom-to-cause table with the
+query or command that confirms each one.
+:::
+
+## The one thing to know before anything else
+
+**No total is ever stored.** The database records which of four tiers a person
+tapped on a given day, and nothing else about their activity. Every minute
+figure, every guild ranking, every streak and every percentage in the product is
+derived at read time from that plus `src/config.ts`.
+
+This is why the next-season runbook is mostly a config edit, why a corrected
+member count fixes history instead of only the future, and why several of the
+invariants exist. It is `SPEC.md` §4.4, and it is the assumption underneath the
+rest of this book.

@@ -1,0 +1,112 @@
+---
+title: "Status"
+description: "What is built, what is genuinely not done, and what is cut rather than pending."
+---
+
+Accurate as of 2026-07-31. Three things gate real use, and they are listed first.
+
+## The three gates
+
+::: {.callout-important}
+## 1. No smoke run has been done
+
+`docs/SMOKE.md` is the manual checklist and the **only** acceptance basis for
+`registration.ts`, `checkin.ts`, `reports.ts`, `group.ts`, `reminders.ts` and the
+Telegram calls inside `ticker.ts`.
+
+Not one phase's checklist has been worked through. Everything below "is built" in
+the sense that the code exists, typechecks and passes 264 automated tests. None of
+it has been observed working against the real Bot API.
+:::
+
+::: {.callout-important}
+## 2. Nothing is deployed, so there is no off-machine backup
+
+NFR-3 is met **by the deployment target**, not by code in this repository. The
+intended home is Tietokilta's shared Azure PostgreSQL server, whose databases are
+dumped and shipped off-site nightly by infrastructure outside this repo.
+
+That move has not happened. The infra change has not been raised. Until it does,
+a Compose volume is the only copy of anything, and it is not one anybody should
+rely on.
+:::
+
+::: {.callout-important}
+## 3. The competition dates are placeholders
+
+`COMPETITION_START` and `COMPETITION_END` in `src/config.ts` are plausible-shaped
+stand-ins. `SPEC.md` §9 Q1 is unresolved.
+
+Guild `memberCount` values are also **unverified**, and they are the denominator of
+every ranking.
+:::
+
+## What is built
+
+| Phase | Contents | State |
+|---|---|---|
+| 1 | Registration, `/log`, `/me`, `/standings`, the check-in flow, undo, backdating | Code complete |
+| 2 | Group chat binding, the pinned standings, the Monday post | Code complete |
+| 3 | Daily reminders, the five-ignore auto-stop and follow-up, `/remind`, 403 handling | Code complete |
+| 4 | The restore-fidelity test and the decoder hardening | Code complete, **phase not complete** |
+
+Phase 4 is the one worth being precise about. Its code is done: `tests/db/restore.test.ts`
+proves a dump restores into an empty database and reproduces every published
+number exactly in both dump formats, and `decode()`'s re-encode assertion closes
+trailing-junk payloads. But the phase **reduces to NFR-3**, and NFR-3 is met by
+deploying this bot's database onto Tietokilta's infrastructure, which has not
+happened.
+
+## Cut, not pending
+
+Do not implement these. Each was decided against with a reason recorded.
+
+| Item | Where the decision lives |
+|---|---|
+| FR-11's optional tag on a logged day | `SPEC.md` §9 Q5. The `days.tag` column exists and nothing writes it |
+| A Telegram Mini App | `SPEC.md` §8 |
+| MET-based scoring / a sport taxonomy | `SPEC.md` §8 |
+| A global individual leaderboard | `SPEC.md` §8 and FR-15 |
+| Per-user timezones | `SPEC.md` §8 |
+
+`SPEC.md` §8 is the canonical list. **Read it before adding anything that looks
+obviously missing**, because most of what looks obviously missing is there on
+purpose.
+
+## Open questions
+
+`SPEC.md` §9 tracks these in three groups: still open, decided, and unresolved but
+not blocking. The two that matter operationally are Q1 (the competition dates) and
+the unverified member counts, both covered above.
+
+## Budget
+
+`src/` is **1,958 effective lines** against NFR-6's 2,000-line ceiling, so **42
+remain**.
+
+The history is worth knowing, because it explains why there is so little room:
+
+- Phase 4 spent 4 of the 84 that remained after Phase 3, because its work was tests
+  and documents rather than application logic, and because FR-11 was cut.
+- The pre-smoke bugfix pass spent 38 more, on the FR-9 undo guard and the FR-12 week
+  label.
+
+There is no longer room for a feature here, only for fixes. The next change that
+needs more than 42 lines is a conversation about the ceiling rather than a quiet
+overrun.
+
+`SPEC.md` §7's per-phase line split was a rounded residual rather than a costed
+estimate, and a note there records this so the conflict is not rediscovered.
+
+## What a maintainer should do first
+
+In order:
+
+1. Resolve the competition dates and set them (`SPEC.md` §9 Q1).
+2. Verify every guild's member count with the guild itself.
+3. Work through `docs/SMOKE.md` end to end against a test bot.
+4. Raise the infra change so the database exists on Tietokilta's server, which is
+   what makes NFR-3 true.
+
+Steps 1 to 3 are inside this repository. Step 4 is not, and it is the one that has
+been outstanding longest.

@@ -1,0 +1,320 @@
+---
+title: "Shape"
+description: "The one-way dependency arrow, the file map, and the size ceiling that keeps the design honest."
+---
+
+The codebase has one organising idea, and almost everything else follows from it.
+
+## Dependencies point one way
+
+```{mermaid}
+%%| label: fig-arrow
+%%| fig-cap: "Every arrow points right. Nothing to the right of a layer is imported by it."
+flowchart LR
+  C["config.ts<br/><i>the only knobs</i>"] --> D["domain/<br/><i>pure decisions</i>"]
+  D --> DB["db/<br/><i>all the SQL</i>"]
+  DB --> H["bot/ handlers<br/><i>grammY</i>"]
+  H --> R["bot/render.ts<br/><i>pure formatting</i>"]
+```
+
+The property this buys is stated once and worth restating: **the scoring model is
+never tested through Telegram.** `src/domain/` imports nothing but `config.ts`, so
+the streak rule, the ranking rule, the Monday-post decision and the reminder
+state machine are all ordinary unit tests with no network, no clock and no
+database. `src/db/` needs a Postgres schema but no bot token. Only the handler
+files need Telegram at all, and they are deliberately thin.
+
+That thinness is a design constraint, not an accident. When a handler grows a
+decision worth testing, the decision moves into `src/domain/` and the handler
+calls it. Every file in `src/domain/` got there that way, and each one's header
+comment records why.
+
+## The tree
+
+```text
+sports-competition/
+├── src/                       25 files, 1,958 effective lines
+│   ├── config.ts              the only knobs (FR-25)
+│   ├── strings.ts             every user-facing string (FR-27)
+│   ├── html.ts                escapeHtml, for HTML parse mode
+│   ├── main.ts                startup, then hand off to the loop
+│   ├── domain/                pure. No Telegram, no db, no clock
+│   │   ├── scoring.ts         tiers, bar, window, rank, streak
+│   │   ├── scheduling.ts      the Monday-post decision (FR-20)
+│   │   └── reminders.ts       the FR-21/FR-22 state machine
+│   ├── db/                    all the SQL. postgres.js templates
+│   │   ├── client.ts          connection + the retry loop
+│   │   ├── migrate.ts         numbered .sql, each applied once
+│   │   ├── calendar.ts        every date bucket starts here
+│   │   ├── tiers.ts           the config-backed tier CTE
+│   │   ├── users.ts           registration, moves, reminder hour
+│   │   ├── days.ts            the log upsert, the guarded undo
+│   │   ├── standings.ts       the four read queries
+│   │   ├── chats.ts           binding + pin/Monday ledger
+│   │   ├── reminders.ts       who is due, and the send writes
+│   │   └── migrations/
+│   │       ├── 001_initial.sql    guilds, users, days
+│   │       ├── 002_chats.sql      the chat binding (FR-18)
+│   │       └── 003_reminders.sql  reminder_asked, last_reminded_at
+│   └── bot/                   Telegram. grammY
+│       ├── index.ts           installs handlers IN ORDER
+│       ├── callbacks.ts       the callback-data codec
+│       ├── render.ts          pure formatting. Every message
+│       ├── registration.ts    /start, picker, move-or-stay
+│       ├── checkin.ts         /log, tiers, backdate, undo
+│       ├── reports.ts         /me and /standings
+│       ├── group.ts           binding a chat to a guild (FR-18)
+│       ├── reminders.ts       /remind + the per-tick batch
+│       └── ticker.ts          the 60-second loop
+│
+├── tests/                     264 tests across 14 files
+│   ├── domain/                scoring, scheduling, reminders
+│   ├── db/                    one Postgres schema per file
+│   ├── bot/                   callbacks + render only, both pure
+│   └── helpers/db.ts          freshDatabase("<name>")
+│
+├── docs/
+│   ├── SMOKE.md               the manual checklist. The ONLY
+│   │                          acceptance basis for bot/
+│   ├── evidence.md            citations for the design decisions
+│   ├── book/                  this book
+│   └── superpowers/
+│       ├── specs/             the four phase designs
+│       └── plans/             the per-phase implementation plans
+│
+├── scripts/                   dump.sh, restore.sh. Not the backup
+├── SPEC.md                    THE SOURCE OF TRUTH. FR/NFR list
+├── CLAUDE.md                  what bites in each file
+├── README.md                  run it, deploy it
+├── docker-compose.yml         bot + db, plus the db-test profile
+└── Dockerfile                 COPY src ./src. Hence --build
+```
+
+Two absences worth knowing about, because other documents refer to both as though
+they were there.
+
+::: {.callout-warning}
+## `prototype/bot-flows.html` has been deleted
+
+It was the clickable screen-by-screen mockup, and it is still cited by `README.md`,
+`CLAUDE.md`, `SPEC.md` §7 and §9, and three source comments
+(`config.ts:51` on keyboard order, `domain/scoring.ts:13` on the ten-slot bar,
+`render.ts:50` on the 45-minute nudge threshold). Every one of those links is now
+dead.
+
+It was removed in commit `77507ee`, so it is recoverable:
+
+```sh
+git show 77507ee^:prototype/bot-flows.html > /tmp/bot-flows.html
+```
+
+The three source comments cite it for **rendering details that are already
+implemented**, so nothing is blocked by its absence. But if you are changing the
+keyboard order, the progress bar, or the copy, recover it first rather than
+guessing at what it specified.
+:::
+
+`.superpowers/` also exists at the repository root on the machine this was
+developed on, holding the per-phase build ledgers (`progress.md`, `HANDOVER.md`).
+Its `.gitignore` contains `*`, so **it is not in the repository and a fresh clone
+will not have it.** `CLAUDE.md` describes it because it is the most useful context
+on the machine that has it, not because you can expect to find it.
+
+## The file map
+
+::: {.callout-note collapse="true"}
+## Every file in `src/`, with its job
+
+**Configuration**
+
+| File | Job |
+|---|---|
+| `config.ts` | Guilds, member counts, tier minutes, the weekly target, competition dates, the timezone, reminder constants. The only place any of these exist |
+| `strings.ts` | Every user-facing string in the product. English, inline, no i18n framework (FR-27) |
+| `html.ts` | `escapeHtml`, for interpolating untrusted values into Telegram's HTML parse mode |
+| `main.ts` | Startup: connect, migrate, sync guilds, build the bot, start the ticker, install signal handlers |
+
+**`domain/`, pure**
+
+| File | Job |
+|---|---|
+| `scoring.ts` | Tier minutes, the progress bar, window membership, competition ranking, the weekly streak |
+| `scheduling.ts` | The Monday-post decision (FR-20) and the two competition-boundary rules around it |
+| `reminders.ts` | The FR-21/FR-22 state machine: what a due user is sent, and what their ignore count becomes |
+
+**`db/`, all the SQL**
+
+| File | Job |
+|---|---|
+| `client.ts` | The postgres.js connection and `waitForDatabase`'s retry loop |
+| `migrate.ts` | Numbered `.sql` files, each applied once inside its own transaction |
+| `calendar.ts` | Today, yesterday, the current week's Monday, and the local hour. Every date bucket in the system starts here |
+| `tiers.ts` | The config-backed tier-minutes CTE injected into every query that converts tiers to minutes |
+| `users.ts` | Registration, guild moves, the reminder-hour write |
+| `days.ts` | The log upsert, the guarded undo, and the weekly minutes sum |
+| `standings.ts` | The four read queries: guild standings, neighbours, weekly totals, participation |
+| `chats.ts` | The guild-to-chat binding and the pin / Monday-post ledger |
+| `reminders.ts` | Who is due a reminder, and the writes that record a send, a resume, or a block |
+
+**`bot/`, Telegram**
+
+| File | Job |
+|---|---|
+| `index.ts` | Builds the bot and installs handlers **in a specific order** |
+| `callbacks.ts` | The callback-data codec: one encoder, one decoder, one re-encode assertion |
+| `render.ts` | Pure formatting. Every message body is built here |
+| `registration.ts` | `/start`, the guild picker, the move-or-stay flow, the reminder question |
+| `checkin.ts` | `/log`, the tier buttons, the backdate button, the confirmation and the undo |
+| `reports.ts` | `/me` and `/standings` |
+| `group.ts` | Binding a group chat to a guild (FR-18) |
+| `reminders.ts` | `/remind`, its callbacks, and the batch send called once per tick |
+| `ticker.ts` | The 60-second loop: pin refresh, Monday post, reminder pass |
+:::
+
+## How the modules actually talk
+
+The layer arrow above is the idea. This is the real thing: every internal import
+in `src/`, extracted from the source rather than drawn from memory.
+
+**An arrow means "imports".** `config.ts`, `strings.ts` and `html.ts` are left out
+of the graph because nearly everything imports them, and drawing twenty edges into
+three boxes would hide the structure that matters. Their relationships are in the
+table underneath.
+
+Nodes are shaped by layer: **`bot/`** rectangular, **`db/`** rounded, **`domain/`**
+stadium-shaped. The diagram is larger than the page: it scrolls sideways, and
+clicking it opens it full size.
+
+```{mermaid}
+%%| label: fig-modules
+%%| fig-cap: "Every internal import in src/, minus the three universally-imported leaves. An arrow means the source file imports the target. Rectangles are bot/, rounded boxes db/, stadiums domain/."
+flowchart LR
+  main["main.ts"]
+
+  bindex["bot/index"]
+  ticker["bot/ticker"]
+  reg["bot/registration"]
+  checkin["bot/checkin"]
+  reports["bot/reports"]
+  group["bot/group"]
+  brem["bot/reminders"]
+  render["bot/render"]
+  cb["bot/callbacks"]
+
+  client("db/client")
+  migrate("db/migrate")
+  cal("db/calendar")
+  tiers("db/tiers")
+  users("db/users")
+  days("db/days")
+  stand("db/standings")
+  chats("db/chats")
+  drem("db/reminders")
+
+  scoring(["domain/scoring"])
+  sched(["domain/scheduling"])
+  dremd(["domain/reminders"])
+
+  main --> bindex & ticker & client & migrate & users
+
+  bindex --> reg & checkin & reports & group & brem
+  bindex --> drem
+
+  ticker --> cal & chats & stand
+  ticker --> sched & scoring
+  ticker --> brem & render
+
+  reg --> cb & checkin & users
+  checkin --> cb & render & cal & days & users & scoring
+  reports --> cb & render & cal & days & stand & users & scoring
+  group --> cb & cal & chats
+  brem --> cb & checkin & users & drem & dremd
+
+  render --> stand & scoring
+  cb --> scoring
+
+  days --> tiers
+  stand --> tiers & scoring
+  sched --> scoring
+```
+
+Read three things off it.
+
+**`domain/` is a sink.** Nothing in it points back out. `scoring.ts` imports only
+`config.ts`, which is why the whole scoring model is testable with no database and
+no Telegram.
+
+**`db/` never imports `bot/`.** The only db-to-domain edges are `standings.ts`
+importing a `WeekTotal` type and `days.ts`/`standings.ts` sharing the tier CTE.
+The layering holds in the direction that matters: SQL knows nothing about
+Telegram.
+
+**`checkin.ts` is imported by three siblings** (`index.ts`, `registration.ts`,
+`bot/reminders.ts`), which is unusual for a handler and deliberate.
+`checkInMessage()` lives there and FR-21 requires the daily reminder to send *the*
+check-in message, not one that resembles it. The reminder pass has `bot.api` and a
+chat id but no `ctx`, so without that shared export there would be two
+constructions that agree today and drift later.
+
+### The three omitted leaves
+
+| Module | Imported by | Why it is everywhere |
+|---|---|---|
+| `config.ts` | 17 of the 25 files | The only source of guilds, tiers, dates and the timezone (FR-25) |
+| `strings.ts` | 7 files: `bot/index`, `registration`, `checkin`, `reports`, `group`, `reminders`, `render` | Every user-facing string in one file (FR-27). It imports `config.ts` and `html.ts` itself. Note `ticker.ts` is **not** among them: every string it sends comes through `render.ts` |
+| `html.ts` | 2 files: `strings.ts` and `bot/render.ts` | `escapeHtml`, applied to interpolated values only |
+
+## What has no automated tests, and why
+
+`registration.ts`, `checkin.ts`, `reports.ts`, `group.ts`, `reminders.ts` and the
+Telegram calls inside `ticker.ts` are **untested by design**. Their acceptance
+basis is `docs/SMOKE.md`, run by hand.
+
+This is a real decision rather than a gap someone never got round to. Testing
+them means mocking the Bot API, and a mock of Telegram's behaviour is a
+restatement of one's assumptions about Telegram, which is exactly the thing most
+likely to be wrong. The response was to keep those files thin enough that reading
+them is a sufficient check, and to push everything with a decision in it down into
+`domain/` where it is tested normally.
+
+The exception worth knowing: `domain/reminders.ts` is unit tested end to end
+specifically because five consecutive ignores takes five days to reproduce by
+hand, so the smoke checklist *cannot* be its acceptance basis.
+
+## The size ceiling
+
+NFR-6 caps `src/` at **2,000 effective lines**, counted like this:
+
+```sh
+find src -name '*.ts' | xargs cat | grep -vE '^\s*$' | grep -vE '^\s*(//|/\*|\*|\*/)' | wc -l
+```
+
+At the time of writing that returns **1,958**, so 42 remain.
+
+The ceiling is not a style preference. It is a tripwire: the project rejected a
+Mini App, MET-based scoring, an individual leaderboard, per-user timezones and a
+sport taxonomy (`SPEC.md` §8), and every one of those is the kind of feature that
+arrives back as "just a small addition". Passing 2,000 lines is the signal that
+one of them has crept back in.
+
+There is no room for a feature here, only for fixes. **The next change that needs
+more than 42 lines is a conversation about the ceiling, not a quiet overrun.**
+
+::: {.callout-warning}
+## Counting it the same way each time
+
+Earlier figures in the build ledgers (1,186, then 1,510) were taken by hand and
+run 10 to 30 lines below what the command above reports. Compare like with like,
+or you will read a jump in the trend that never happened.
+:::
+
+## Conventions you will trip over
+
+- Imports carry explicit `.ts` extensions (`allowImportingTsExtensions`), and types
+  are imported with `import type` (`verbatimModuleSyntax`).
+- `strict` and `noUncheckedIndexedAccess` are on, so indexed access needs a guard
+  or a justified `!`.
+- There is no linter. `bunx tsc --noEmit` is the static check.
+- Comments explain *why*, cite the requirement ID, and record what was considered
+  and rejected. That density is the house style, and matching it is expected.
+- No em dashes or en dashes anywhere, including message copy.

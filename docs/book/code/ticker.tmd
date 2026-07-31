@@ -1,0 +1,211 @@
+---
+title: "The ticker"
+description: "The 60-second loop: everything that happens without a user action, and the three different date gates that must not be collapsed into one."
+---
+
+`src/bot/ticker.ts` is 392 lines, the largest file in the project, and it is where
+most confusing production behaviour comes from. It is one `setInterval` at 60
+seconds, started in `main.ts`, doing three jobs.
+
+Read this chapter before debugging anything about the pinned message, the Monday
+post, or reminder timing.
+
+## One tick
+
+```{mermaid}
+%%| label: fig-tick
+%%| fig-cap: "One tick. The three gates are drawn separately because they stop at different dates."
+flowchart TD
+  S(["every 60s"]) --> RUN{"previous tick<br/>still running?"}
+  RUN -->|yes| SKIP["warn + skip"]
+  RUN -->|no| CAL["calendar(): today, yesterday,<br/>weekStart, hour"]
+  CAL --> W{"inWindow<br/>OR previous week<br/>in competition?"}
+  W -->|neither| DONE(["return"])
+  W -->|yes| REM{"inWindow?"}
+  REM -->|yes| SEND["sendDueReminders()<br/><i>own try/catch</i>"]
+  REM -->|no| CHATS
+  SEND --> CHATS["listChats()"]
+  CHATS --> PIN{"inWindow AND<br/>15 min since<br/>last refresh?"}
+  PIN -->|yes| Q["standings x2,<br/>once for all chats"]
+  PIN -->|no| LOOP
+  Q --> LOOP["for each chat<br/><i>own try/catch</i>"]
+  LOOP --> RP["refreshPin, if this<br/>is a refresh tick"]
+  RP --> MP{"shouldPostMonday?"}
+  MP -->|yes| POST["sendMondayPost"]
+```
+
+## The three gates, and why they differ
+
+This is the part that is genuinely subtle. The ticker has three time conditions
+and they stop at **three different dates**.
+
+| Job | Gate | Stops when |
+|---|---|---|
+| Pin refresh | `inWindow` **and** 15 minutes elapsed | `COMPETITION_END` |
+| Monday post | `previousWeekInCompetition(weekStart)` | one week past `COMPETITION_END` |
+| Reminder pass | `inWindow` | `COMPETITION_END` |
+
+::: {.callout-important}
+## The pin's gate must stay the tighter one
+
+`COMPETITION_END` is a Sunday, so the final week's result falls due on the Monday
+**after** the window closes. That is why the Monday post runs one week longer than
+everything else: otherwise the competition's actual final result is the one result
+never announced.
+
+The trap: outside the window, `standings(weekStart, today)` covers a week the
+competition does not, so it is an **all-zero** "This week" table. Relaxing the
+pin's gate to match the post's would overwrite the frozen final standings in every
+guild chat with a table of zeroes, in front of the whole competition, at the exact
+moment nobody is watching the logs any more.
+
+This is why `refreshPins` carries `inWindow` rather than the function returning on
+one relaxed condition.
+:::
+
+The reminder pass has its own placement rule, and it is wrong in two different
+ways if moved:
+
+- **Inside the window gate**, so reminders stop with the competition rather than
+  asking people for a week afterwards to log days FR-26 refuses to store.
+- **Outside the 15-minute pin branch.** Nested there, a reminder would land on a
+  quarter-hour lattice, and a user whose window opened at 20:01 would wait until
+  20:15.
+
+## The running guard
+
+```ts
+let running = false;
+```
+
+`setInterval` starts a new tick every 60 seconds regardless of whether the
+previous one finished, and grammY's default per-call API timeout is 500 seconds.
+So a single slow Telegram call can leave several ticks in flight at once.
+
+Concurrent ticks each read `chat.lastMondayWeek` before any of them has called
+`recordMondayPost`, so each independently decides the Monday post is owed and each
+sends it. **The `chats.last_monday_week` ledger guarantees exactly-once across
+restarts, not across overlapping ticks in the same process.** Both guarantees are
+needed and neither alone was sufficient.
+
+A skipped tick is not work lost: `shouldPostMonday` and the pin refresh both
+operate on live state, so the next tick a minute later picks up exactly where the
+skipped one would have started.
+
+::: {.callout-note}
+## What this does not protect against
+
+A second OS process running the same ticker against the same database would still
+double-post, because `running` is per-process memory rather than a database lock.
+That case is ruled out at the deployment level (NFR-2: one machine, one process),
+not in code.
+:::
+
+## The pinned message
+
+FR-19. **It is edited, never resent**, and the edit is skipped entirely when the
+rendered text is unchanged. Resending would notify a whole guild every 15 minutes,
+which is the precise opposite of what the requirement asks for.
+
+Skipping the unchanged edit removes the API call rather than making it and
+swallowing Telegram's 400. Overnight, when nobody logs, the refresh does nothing at
+all.
+
+The two conditions in that check are separate on purpose:
+
+```ts
+const unchanged = chat.pinnedText === text;
+if (unchanged && !chat.pinFailed) return;
+```
+
+A chat whose text has not changed but whose pin previously **failed** still has
+work to do: retry the pin. Editing it with identical text to get there would
+produce exactly the 400 the check exists to avoid.
+
+`pinned_text` is stored for this comparison only. It is a rendered string and is
+never read back as data.
+
+**A refused pin is not a failure.** The pin is the requirement, but the live number
+is the value, so the message is still sent and still updates, with a line asking
+for admin rights appended, and the pin is retried on every refresh until it takes.
+That way a board's fix applies without anyone restarting anything.
+
+## Three failures, three different recoveries
+
+The error handling here is unusually specific, and the distinctions are all
+earned.
+
+| Detector | Matches | Recovery |
+|---|---|---|
+| `isGone` | 403, or the supergroup-upgrade 400 | Delete the `chats` row. The chat is gone for good |
+| `isMessageGone` | "message to edit not found" | Null `pinned_message_id`, so the next refresh sends and pins a fresh message |
+| `isSupergroupUpgrade` | the upgrade 400 alone | Rethrown from `tryPin`, where a bare 403 must not be trusted |
+
+::: {.callout-warning}
+## Why `isGone` is deliberately narrow
+
+A generic "chat not found" is Telegram's catch-all for "this id did not resolve",
+which a transient lookup failure also produces. Treating it as gone-for-good would
+delete a perfectly good chat's row on a false positive.
+
+Worse, a later rebind resets `last_monday_week` to the current week, which would
+silently suppress that week's Monday post with no signal anywhere. A bot actually
+removed from a chat gets a 403, which stays in the set, so nothing real goes
+unhandled.
+:::
+
+The `tryPin` case is the subtlest. `pinChatMessage`'s 403 is Telegram's ordinary
+answer to "the bot lacks the pin permission", which is exactly the recoverable
+state the admin-request line exists for, **not** a gone chat. Trusting `isGone`
+there would unbind a chat that merely lacks one admin right. So only the
+supergroup-upgrade case is rethrown.
+
+The honest consequence, recorded rather than hidden: a bot genuinely removed from a
+chat is still caught, but **not always on that tick**. When the pin was already
+failing and the standings text has not changed, `refreshPin` makes no other
+Telegram call, so the 403 arrives in `tryPin` and is swallowed as a missing
+permission. Recovery is delayed, not lost. Worst case is roughly a week wrongly
+bound, during which the only cost is edit attempts against a chat that is gone.
+
+## Isolation
+
+Every chat's work is wrapped in its own `try`/`catch`, so one chat's failure does
+not cost the other eight their pin refresh and Monday post. The reminder pass gets
+its own guard for the same reason, and the batch's per-user isolation lives inside
+`sendDueReminders`.
+
+Even the recovery paths are guarded. `unbindChat` is wrapped, because an error
+there (a dropped database connection, say) would escape the per-chat catch and
+abandon every remaining chat that tick, which is exactly what the isolation
+exists to prevent.
+
+## One known gap, on shutdown
+
+`main.ts` stops the ticker before the bot, so no new tick starts while `bot.stop()`
+drains in-flight updates. `clearInterval` cannot abort a tick already running,
+though.
+
+If the process is killed between `sendMessage` and `recordMondayPost` inside
+`sendMondayPost`, that week's Monday message is **re-posted on the next boot**,
+because the ledger write never landed. This is documented in `main.ts:20-27`
+rather than solved, since solving it means a transaction spanning a Telegram call.
+
+## Reminder sends
+
+`sendDueReminders` in `src/bot/reminders.ts` is called once per tick. It reads the
+due set (capped at 25, paced at 25 per minute against Telegram's 30-per-second
+broadcast limit), renders the check-in message **once for the whole batch**, and
+sends.
+
+Two errors are special:
+
+- **403**: the user has blocked the bot. Recorded via `setBlocked`, and
+  `dueReminders` never selects that row again until the user messages the bot.
+- **429**: rate limited. The pass **stops entirely** rather than continuing, because
+  this is Telegram saying the batch itself is the problem. The remaining users stay
+  due and the next tick retries them, still inside the grace window.
+
+`recordReminder` is called **only after** Telegram accepted the message. A send that
+succeeds and then fails to record re-sends on the next tick, bounded by the grace
+window. That gap is accepted rather than solved, for the same reason as the Monday
+post's: the alternative is a transaction spanning a network call.

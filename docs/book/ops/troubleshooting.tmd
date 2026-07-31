@@ -1,0 +1,189 @@
+---
+title: "Troubleshooting"
+description: "Symptom, cause, and the command or query that confirms it."
+---
+
+Start here when something is behaving oddly in production. Most surprises come
+from the ticker or from the competition window.
+
+Every query below assumes a psql session. On a Compose deployment that is:
+
+```sh
+docker compose exec db psql -U bot -d bot
+```
+
+which runs inside the container and needs no port mapping. To use a psql on the
+host instead, uncomment the `db` service's loopback port mapping in
+`docker-compose.yml` first.
+
+## Nothing is happening at all
+
+**Everything returns a refusal, the ticker does nothing, no reminders fire.**
+
+Almost always the competition window. Check it first, before anything else:
+
+```sql
+SELECT (now() AT TIME ZONE 'Europe/Helsinki')::date AS today;
+```
+
+Compare against `COMPETITION_START` / `COMPETITION_END` in `src/config.ts`. Outside
+the window: FR-26 refuses every write, the ticker returns early, and the reminder
+pass is skipped. This is by design and produces no error anywhere.
+
+**Second most likely:** a config change was applied with `docker compose restart
+bot` instead of `up -d --build`, so the container is still running the old dates.
+
+```sh
+docker compose logs bot | tail -5     # is it even polling?
+```
+
+## The pinned message is not updating
+
+Work down this list.
+
+| Check | How |
+|---|---|
+| Is the chat still bound? | `SELECT * FROM chats;` A row missing means the ticker unbound it, which it logs as `chat <id> is gone, unbinding` |
+| Is today inside the window? | The pin refresh stops at `COMPETITION_END`. After it, the final standings stay frozen deliberately |
+| Has the text actually changed? | The edit is **skipped when the rendered text is identical**. Overnight, when nobody logs, the refresh legitimately does nothing |
+| Is it just slow? | The refresh is every **15 minutes**, not every tick |
+| Is a tick hanging? | `docker compose logs bot \| grep "tick skipped"`. That line means the previous tick was still running a full minute later |
+
+`pinned_text` in the `chats` row is exactly what was last sent, so comparing it
+against what `/standings` renders now tells you whether the skip is correct.
+
+## The message appears but is not pinned
+
+Expected, and self-healing. The bot lacks pin permission in that chat. The message
+carries a line asking for admin rights, and `pin_failed` is `TRUE`:
+
+```sql
+SELECT chat_id, guild_slug, pin_failed FROM chats;
+```
+
+The pin is retried on **every** refresh, so granting the permission fixes it within
+15 minutes with no restart.
+
+## The Monday post did not arrive
+
+```sql
+SELECT chat_id, guild_slug, last_monday_week FROM chats;
+```
+
+| `last_monday_week` | Meaning |
+|---|---|
+| Already this week's Monday | The post went out. Check the chat's history |
+| The week the chat was bound | A chat bound mid-week is deliberately not owed that week's post |
+| An older week | It is owed, and should fire within a minute of `MONDAY_POST_HOUR` |
+
+Three further causes:
+
+- **The first Monday of the competition never posts.** There is no previous week to
+  report, and announcing a winner at 0.0 minutes per member would be the first thing
+  every guild ever sees.
+- **It can arrive on a Tuesday.** The condition is "no post yet for this week and
+  past Monday's hour", not "today is Monday". A bot that was down all Monday posts
+  late rather than never.
+- **A duplicate post after a restart** means the process was killed between
+  `sendMessage` and `recordMondayPost`. Known and documented in `src/main.ts:20-27`.
+
+## A duplicate post that is not explained by a restart
+
+Check nothing else is running the same ticker against the same database. The
+in-process guard is per-process memory, not a database lock, so **two processes
+double-post** and nothing in the code prevents it. NFR-2 rules this out at the
+deployment level.
+
+## Reminders arrive at the wrong time, or not at all
+
+```sql
+SELECT telegram_id, reminder_hour, reminder_asked, ignored_streak, blocked,
+       last_reminded_at AT TIME ZONE 'Europe/Helsinki' AS last_reminded_local
+FROM users WHERE telegram_id = <id>;
+```
+
+Read it against `dueReminders()`'s clauses:
+
+| Column | Blocks the send when |
+|---|---|
+| `reminder_hour` | `NULL`. Off is off |
+| `blocked` | `TRUE`. Cleared automatically on their next private-chat message |
+| `ignored_streak` | greater than 5. **Paused.** Only "Keep them" or `/remind` resumes it |
+| `last_reminded_at` | already today in Helsinki. One per day, and this is why the 60-second tick does not send 60 times an hour |
+| a `days` row for today | exists. Including a **rest** day, which is the point of the rest button |
+
+Also: the delivery window is the chosen hour plus `REMINDER_GRACE_HOURS` (2). A
+reminder missed at its hour still goes out for two hours, then the day is skipped
+in silence. It never wraps past midnight.
+
+If a whole batch is missing, `docker compose logs bot | grep -E "rate limited|reminder"`.
+A 429 stops the pass for that tick deliberately; the next tick retries inside the
+same grace window.
+
+## Someone says reminders are on but receives nothing
+
+The classic case: they are **paused** by FR-22, not off. `/remind` reports this
+correctly (`remindStatusPaused`), and running `/remind` also fixes it, because
+`setReminderHour` resets `ignored_streak`.
+
+Confirm with `ignored_streak > 5` in the query above.
+
+## Standings look wrong
+
+**A guild's number seems too low or too high.** Check the denominator first:
+
+```sql
+SELECT slug, name, member_count FROM guilds ORDER BY slug;
+```
+
+These are overwritten from `src/config.ts` on every boot, so if they are wrong,
+config is wrong. A stale member count has no other symptom.
+
+**A guild's total dropped.** This should be impossible. No total is stored, so
+totals only move when data or config moves. If it happens, the first thing to
+check is whether a `NOT u.blocked` clause was added to `src/db/standings.ts`: that
+makes the query retroactive and erases a blocking user's whole season. See
+[Invariants](../invariants.tmd).
+
+**Every guild reads 0.0.** Integer division truncating. Confirm the
+`::numeric` cast is still present before the division in `standings()` and
+`participation()`.
+
+**The same user sees different neighbours on two consecutive `/me` calls.** A
+missing unique tiebreaker in an `ORDER BY`.
+
+## A user's log did not stick
+
+```sql
+SELECT date, tier, logged_at FROM days WHERE telegram_id = <id> ORDER BY date DESC LIMIT 10;
+```
+
+Common causes, in order:
+
+1. **They tapped an old message.** Handlers recompute today and yesterday from the
+   live calendar and refuse anything else. They would have seen "that check-in is
+   out of date" rather than a confirmation.
+2. **Outside the competition window.** Different message, `OUTSIDE_WINDOW`.
+3. **They undid it.** An undo either restores the displaced tier or deletes the row.
+
+## An undo said it did nothing
+
+`UNDO_SUPERSEDED`. Correct behaviour: the day no longer holds the tier that
+message's log stored, because it was logged again or already undone elsewhere. The
+bot refuses rather than reverting an entry it knows nothing about.
+
+## Errors in the logs
+
+| Line | Meaning |
+|---|---|
+| `message not modified (ignored)` | Harmless. A repeat tap, or a tap on a message already in the state it would edit to. Logged at warn to keep the smoke run readable |
+| `tick skipped: previous tick is still running` | A hung API call or slow query. Worth investigating if repeated |
+| `chat <id> is gone, unbinding` | A 403 or a supergroup upgrade. Expected when a bot is removed from a chat |
+| `user <id> has blocked the bot` | Expected. FR-23. Cleared on their next message |
+| `rate limited, stopping this tick's reminders` | Expected under load. Next tick retries |
+| `guild "<slug>" missing from standings` | Real bug. `users`/`chats` and `guilds` have drifted. Surfaced loudly rather than papered over with a guessed rank |
+
+## The test suite fails on the competition window
+
+Expected once the placeholder dates expire. That test exists to make the
+placeholder impossible to forget. Go to [Next season](next-season.tmd).

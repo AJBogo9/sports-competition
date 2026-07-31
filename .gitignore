@@ -3,6 +3,11 @@ dist/
 build/
 backups/
 
+# taliesin build output for docs/book. The book's source is committed, the
+# rendered site is not: `taliesin publish docs/book` regenerates it.
+docs/book/_book/
+docs/book/_freeze/
+
 .env
 .env.*
 !.env.example

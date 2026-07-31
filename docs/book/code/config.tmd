@@ -1,0 +1,111 @@
+---
+title: "Configuration"
+description: "src/config.ts is the only knob in the system, why changing it recomputes history, and the rebuild trap that silently ignores your edit."
+---
+
+`src/config.ts` is 114 lines and it is the entire configuration surface of the
+product. There is no admin UI, no settings table, no environment variable that
+changes behaviour, and no runtime override. FR-25.
+
+## What lives there
+
+| Constant | Value today | What it controls |
+|---|---|---|
+| `GUILDS` | 9 entries | Slug, display name and **member count** for each competing guild |
+| `TIER_MINUTES` | 22 / 45 / 75 / 0 | Minutes credited per tier |
+| `TIER_ORDER` | short, medium, long, rest | Keyboard order. Rest last, matching the mockup |
+| `WEEKLY_TARGET_MINUTES` | 150 | The personal target (WHO guideline) |
+| `COMPETITION_START` / `COMPETITION_END` | `2026-07-27` / `2026-09-20` | **Placeholders.** See below |
+| `TIMEZONE` | `Europe/Helsinki` | One timezone for the whole competition, not one per user |
+| `MONDAY_POST_HOUR` | 9 | When the weekly group post goes out |
+| `FOLLOWUP_AFTER_IGNORES` | 5 | FR-22's threshold |
+| `REMINDER_GRACE_HOURS` | 2 | How late a missed reminder may still be delivered |
+| `MAX_REMINDERS_PER_TICK` | 25 | Send pacing |
+
+## Why an edit here recomputes all of history
+
+Because nothing derived from these values is ever stored.
+
+`days.tier` holds the string `"short"`. It does not hold 22. The conversion from
+tier to minutes happens inside every read query, through a CTE built from
+`TIER_MINUTES` on each call (`src/db/tiers.ts`). The same is true of member
+counts: `standings()` divides by `guilds.member_count`, which `syncGuilds()`
+overwrites from `config.ts` on every boot.
+
+So correcting a member count that was wrong all season fixes **the whole season**,
+retroactively, including the numbers already published in pinned messages, the
+moment the next refresh runs. Changing a tier's minute value does the same. This
+is the practical payoff of `SPEC.md` §4.4, and it is why the next-season runbook
+is short.
+
+::: {.callout-important}
+## The corollary
+
+The reason this works is that no cache, column or snapshot table anywhere holds a
+sum. Adding one, even as an optimisation, breaks the property quietly: history
+would then be partly stored and partly derived, and a config edit would produce
+two numbers that disagree. There is no scale problem here that would justify it
+(a few hundred users over eight weeks), so there is no case for the trade.
+:::
+
+## The two constants that are not really configuration
+
+`FOLLOWUP_AFTER_IGNORES` is a constant rather than a setting because FR-22 *states*
+the number five. A deployment running a different value would not be running this
+competition's rules.
+
+`TIMEZONE` is single because per-user timezones were rejected (`SPEC.md` §8). The
+competition is between guilds at one university in one city.
+
+## The placeholder dates
+
+```ts
+export const COMPETITION_START = "2026-07-27";
+export const COMPETITION_END   = "2026-09-20";
+```
+
+These are **not real dates**. `SPEC.md` §9 Q1 is unresolved: the actual competition
+dates were still under discussion when this was written. 2026-07-27 is a Monday
+and 2026-09-20 is the Sunday eight weeks later, inclusive, chosen only to be a
+plausible shape.
+
+A window in the past or the future silently makes every log count for nothing,
+with no error anywhere, because FR-26 excludes anything outside it. A test guards
+this by asserting that today falls inside the window, **so the suite will start
+failing once the placeholder expires.** That failure is the reminder working as
+intended, not a broken test.
+
+## The rebuild trap
+
+::: {.callout-warning}
+## `docker compose restart bot` does not pick up a config change
+
+The `Dockerfile` does `COPY src ./src` at build time and nothing bind-mounts
+`src`. A plain restart silently runs the previous configuration, with no error and
+no log line saying so.
+
+Any change under `src/` needs:
+
+```sh
+docker compose up -d --build
+```
+
+This has caught people. If a config edit appears to have done nothing, this is the
+first thing to check.
+:::
+
+## Adding or removing a guild
+
+`GUILDS` is the roster and `syncGuilds()` mirrors it into the `guilds` table on
+every boot, upserting name and member count by slug. So:
+
+- **Adding a guild** is one entry plus a restart. Its deep link
+  `https://t.me/<bot>?startgroup=<slug>` starts working immediately.
+- **Renaming** a guild is a display-name edit. The slug is the key and must not
+  change, because it is in circulation inside callback payloads and deep links.
+- **Removing** a guild is the awkward case. `syncGuilds` only ever inserts and
+  updates, so a removed entry leaves its `guilds` row in place. Users and chats
+  carry foreign keys onto it, so the row must stay unless you also move them. The
+  handlers already tolerate a slug that is no longer in config: `bind()` in
+  `src/bot/group.ts:43-55` answers with `BIND_GUILD_GONE` rather than failing, and
+  the registration picker simply stops offering it.
