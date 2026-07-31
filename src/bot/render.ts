@@ -134,6 +134,13 @@ export interface MondayPostInput {
   guildPerMember: number;
   /** A share between 0 and 1, from participation(). Rendered as a percentage. */
   participation: number;
+  /**
+   * Phase 2 design 4.8. This is the competition's closing post, decided by
+   * isFinalMondayPost() from weekStart, never from the reader or from today's
+   * date. Optional and defaulting to false so every existing call site keeps
+   * the ordinary copy.
+   */
+  final?: boolean;
 }
 
 /**
@@ -152,15 +159,33 @@ export interface MondayPostInput {
  *
  * Guild names come from config.ts and are trusted today; escaped defensively,
  * because this message reaches a whole guild chat.
+ *
+ * The closing post (phase 2 design 4.8) varies only the opening and closing
+ * sentences. Everything between them is shared rather than duplicated into a
+ * second template, because the figures mean exactly the same thing on the last
+ * post as on any other, and two separately maintained templates would drift.
+ * The ordinary copy cannot simply be reused: it fires the Monday AFTER
+ * COMPETITION_END, where "New week. Everyone back to zero." and "This week is
+ * open." are both false, and there is no week for anyone to act on.
+ *
+ * The variant is not rank-conditional and must never become so. Both branches
+ * are held to the skeleton-equality test in tests/bot/render.test.ts, for the
+ * SPEC.md section 11 reason above.
  */
 export function mondayPost(input: MondayPostInput): string {
   const percent = Math.round(input.participation * 100);
+  const opening = input.final
+    ? "<b>That's the competition.</b>"
+    : "<b>New week. Everyone back to zero.</b>";
+  const closing = input.final
+    ? "Thanks for moving."
+    : "Nothing carries over. This week is open.";
   return (
-    "<b>New week. Everyone back to zero.</b>\n\n" +
+    `${opening}\n\n` +
     `Last week ${escapeHtml(input.winnerName)} took it, ` +
     `${input.winnerPerMember.toFixed(1)} minutes per member.\n\n` +
     `${escapeHtml(input.guildName)} finished ${ordinal(input.guildRank)} of ${input.guildCount}, ` +
     `${input.guildPerMember.toFixed(1)}, with ${percent}% of the guild logging at least once.\n\n` +
-    "Nothing carries over. This week is open."
+    closing
   );
 }

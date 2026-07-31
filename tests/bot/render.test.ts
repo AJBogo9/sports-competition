@@ -376,4 +376,52 @@ describe("mondayPost (FR-20)", () => {
     const post = mondayPost({ ...input, winnerName: "<b>x</b>" });
     expect(post).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
+
+  // Phase 2 design 4.8. The closing post fires the Monday AFTER the window
+  // closes, so the ordinary copy's two claims are both false on it: there is
+  // no new week and nothing is open. This is the whole reason the variant
+  // exists, and the assertions are negative on purpose.
+  test("the closing post does not promise a new week", () => {
+    const post = mondayPost({ ...input, final: true });
+    expect(post).toContain("That's the competition");
+    expect(post).not.toContain("New week");
+    expect(post).not.toContain("back to zero");
+    expect(post).not.toContain("Nothing carries over");
+    expect(post).not.toContain("This week is open");
+  });
+
+  // The numbers mean the same thing on the closing post as on any other, so
+  // the middle of the message must be untouched by the variant. Without this,
+  // the two branches are free to drift into two separately maintained
+  // templates.
+  test("the closing post carries the same figures as an ordinary one", () => {
+    const post = mondayPost({ ...input, final: true });
+    expect(post).toContain("Inkubio");
+    expect(post).toContain("24.1");
+    expect(post).toContain("Prodeko");
+    expect(post).toContain("2nd");
+    expect(post).toContain("22.8");
+    expect(post).toContain("31%");
+  });
+
+  // The same guard as the ordinary post's skeleton test above, applied to the
+  // variant. SPEC.md section 11's disengagement risk does not stop mattering
+  // on the last message of the competition: a guild reading its closing post
+  // from 9th must read the same sentences as one reading it from 1st. The
+  // ordinary post is protected by its own skeleton test, and an unprotected
+  // second template is exactly where a sympathetic special case would land.
+  test("the closing post reads the same for a guild that finished last", () => {
+    const first = mondayPost({ ...input, final: true, guildName: "Prodeko", guildRank: 1, guildPerMember: 22.8 });
+    const last = mondayPost({ ...input, final: true, guildName: "Athene", guildRank: 9, guildPerMember: 4.2 });
+
+    const skeleton = (post: string, name: string, rank: string, perMember: string) =>
+      post
+        .replaceAll(name, "GUILD_NAME")
+        .replaceAll(rank, "RANK")
+        .replaceAll("24.1", "WINNER_PER_MEMBER")
+        .replaceAll(perMember, "GUILD_PER_MEMBER")
+        .replaceAll("31%", "PARTICIPATION");
+
+    expect(skeleton(first, "Prodeko", "1st", "22.8")).toBe(skeleton(last, "Athene", "9th", "4.2"));
+  });
 });

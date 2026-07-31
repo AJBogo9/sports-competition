@@ -5,7 +5,12 @@ import { calendar } from "../db/calendar.ts";
 import { listChats, recordMondayPost, recordPin, unbindChat, type Chat } from "../db/chats.ts";
 import { participation, standings, type GuildStanding } from "../db/standings.ts";
 import { competitionRanks, isInWindow, previousWeek } from "../domain/scoring.ts";
-import { dayBefore, shouldPostMonday } from "../domain/scheduling.ts";
+import {
+  dayBefore,
+  isFinalMondayPost,
+  previousWeekInCompetition,
+  shouldPostMonday,
+} from "../domain/scheduling.ts";
 import { mondayPost, pinnedStandings } from "./render.ts";
 
 const TICK_MS = 60_000;
@@ -147,10 +152,20 @@ async function tryPin(bot: Bot, chatId: string, messageId: string): Promise<bool
     // chat. Trusting it here would unbind a chat that merely lacks one admin
     // right, and a later rebind resets last_monday_week (phase 2 design 2.4),
     // silently suppressing that week's Monday post. Only the
-    // supergroup-upgrade case is rethrown; a bot genuinely removed from the
-    // chat is still caught, because the very next sendMessage or
-    // editMessageText in refreshPin hits the same 403 and isGone() unbinds it
-    // there instead.
+    // supergroup-upgrade case is rethrown.
+    //
+    // A bot genuinely removed from the chat is still caught, but NOT always on
+    // this tick, and an earlier version of this comment claimed otherwise
+    // (Phase 2 ledger, residual parked item 1). The usual route is real: the
+    // next sendMessage or editMessageText in refreshPin hits the same 403 and
+    // isGone() unbinds there. But when the pin was ALREADY failing and the
+    // rendered standings text has not changed, refreshPin makes no other
+    // Telegram call that tick, so the 403 arrives here and is swallowed as an
+    // ordinary missing-permission failure. Recovery is delayed, not lost: the
+    // next change to the standings text takes the edit path, and failing that
+    // the weekly sendMondayPost call is unwrapped and reaches the outer
+    // isGone() catch. Worst case is roughly a week wrongly bound, during which
+    // the only cost is edit attempts against a chat that is gone.
     if (isSupergroupUpgrade(error)) throw error;
     return false;
   }
@@ -191,6 +206,10 @@ async function sendMondayPost(bot: Bot, sql: Sql, chat: Chat, weekStart: string)
       guildCount: table.length,
       guildPerMember: own.perMember,
       participation: share,
+      // Phase 2 design 4.8. Derived from weekStart rather than from today, so
+      // a competition ending mid-week does not print the closing copy on a
+      // Monday that still has a week to come. See isFinalMondayPost.
+      final: isFinalMondayPost({ weekStart }),
     }),
     { parse_mode: "HTML" },
   );
@@ -256,12 +275,43 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
     running = true;
     try {
       const { today, weekStart, hour } = await calendar(sql);
-      // Phase 2 design 4.7. Inert outside the competition, which leaves the closing
-      // numbers pinned as the resting state of a competition that is over.
-      if (!isInWindow(today)) return;
+
+      // Phase 2 design 4.7 and 4.8. The two halves of this loop stop at
+      // DIFFERENT dates, and keeping them apart is the whole point of this
+      // gate rather than an optimisation.
+      //
+      // The pin refresh stops at the window (isInWindow below), leaving the
+      // closing numbers pinned as the resting state of a finished
+      // competition. The Monday post runs one week longer, because
+      // COMPETITION_END is a Sunday and the final week's result falls due on
+      // the Monday after it, which is the only result the original gate never
+      // announced.
+      //
+      // THE TRAP, and the reason refreshPins carries inWindow rather than
+      // this function returning on a single relaxed condition: outside the
+      // window, standings(weekStart, today) covers a week the competition
+      // does not, so it is an all-zero "This week" table. Letting refreshPin
+      // run on it would overwrite the frozen final standings in every pinned
+      // message with a table of zeroes, in front of the whole competition, at
+      // the exact moment nobody is watching the logs any more. The pin must
+      // stay gated even on the tick that sends the closing post.
+      //
+      // Bounded cost, recorded rather than optimised away: once the closing
+      // post has gone out, this condition stays true for the remainder of
+      // that week, so the tick keeps running calendar() and listChats() every
+      // 60 seconds until weekStart rolls over and the first branch takes
+      // over permanently. That is two trivial queries a minute for at most
+      // one week, against a chats table of at most nine rows, and no Telegram
+      // call at all (refreshPins is false and shouldPostMonday is false once
+      // recordMondayPost has landed). Closing it earlier would mean either
+      // asking listChats whether every chat has already posted, which costs
+      // the same query, or holding a "sent" flag in memory, which is the
+      // process state NFR-5 exists to avoid.
+      const inWindow = isInWindow(today);
+      if (!inWindow && !previousWeekInCompetition({ weekStart })) return;
 
       const chats = await listChats(sql);
-      const refreshPins = Date.now() - lastPinRefresh >= PIN_REFRESH_MS;
+      const refreshPins = inWindow && Date.now() - lastPinRefresh >= PIN_REFRESH_MS;
       if (refreshPins) lastPinRefresh = Date.now();
 
       // Fix round 1, minor 3. Neither query depends on the chat, only on
