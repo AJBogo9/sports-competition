@@ -35,8 +35,8 @@ describe("chats (FR-18)", () => {
     expect(chat!.pinFailed).toBe(false);
   });
 
-  // Design 2.2.2. A supergroup id must survive the round trip as an exact
-  // string, never as a JS number.
+  // Phase 2 design 2.2. A supergroup id must survive the round trip as an
+  // exact string, never as a JS number.
   test("returns the chat id as an exact string", async () => {
     await bindChat(sql, SUPERGROUP, "prodeko", WEEK);
     const chat = await findChat(sql, SUPERGROUP);
@@ -48,8 +48,9 @@ describe("chats (FR-18)", () => {
     expect(await findChat(sql, SUPERGROUP)).toBeNull();
   });
 
-  // Design 2.3.1. Rebinding changes the guild and must NOT reset the Monday
-  // ledger, or rebinding would be a way to trigger a second post in one week.
+  // Phase 2 design 3.1. Rebinding changes the guild and must NOT reset the
+  // Monday ledger, or rebinding would be a way to trigger a second post in
+  // one week.
   test("rebinding changes the guild but keeps last_monday_week", async () => {
     await bindChat(sql, SUPERGROUP, "prodeko", WEEK);
     await recordMondayPost(sql, SUPERGROUP, "2026-08-03");
@@ -71,8 +72,8 @@ describe("chats (FR-18)", () => {
     expect(chat!.pinFailed).toBe(false);
   });
 
-  // Design 2.3.2. The flag drives one extra line in the render and is cleared
-  // the moment a retry succeeds.
+  // Phase 2 design 3.2. The flag drives one extra line in the render and is
+  // cleared the moment a retry succeeds.
   test("records and then clears a failed pin", async () => {
     await bindChat(sql, SUPERGROUP, "prodeko", WEEK);
     await recordPin(sql, SUPERGROUP, { messageId: "42", text: "a", pinFailed: true });

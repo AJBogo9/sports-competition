@@ -42,11 +42,11 @@ function toChat(record: ChatRecord): Chat {
  * FR-18. Binding and rebinding are one operation.
  *
  * ON CONFLICT updates guild_slug alone, deliberately: last_monday_week must
- * survive a rebind (design 2.3.1), or an admin could rebind a chat to force a
- * second Monday post in the same week. weekStart is therefore only ever used
- * for the initial insert, where it starts the ledger at the current week so a
- * chat bound mid-week does not immediately receive a "new week" post
- * (design 2.2.4).
+ * survive a rebind (phase 2 design 3.1), or an admin could rebind a chat to
+ * force a second Monday post in the same week. weekStart is therefore only
+ * ever used for the initial insert, where it starts the ledger at the current
+ * week so a chat bound mid-week does not immediately receive a "new week" post
+ * (phase 2 design 2.4).
  */
 export async function bindChat(
   sql: Sql,
@@ -68,7 +68,12 @@ export async function findChat(sql: Sql, chatId: string): Promise<Chat | null> {
   return record ? toChat(record) : null;
 }
 
-/** Ordered by chat_id so the ticker walks chats in a stable order. */
+/**
+ * Ordered by the ::text form of chat_id (lexicographic, not numeric, since
+ * the unaliased cast in CHAT_COLUMNS becomes the output column ORDER BY
+ * resolves against), which is fine: the ticker only needs a stable order to
+ * walk chats in, not a numeric one.
+ */
 export async function listChats(sql: Sql): Promise<Chat[]> {
   const records = await sql<ChatRecord[]>`
     SELECT ${sql.unsafe(CHAT_COLUMNS)} FROM chats ORDER BY chat_id
@@ -83,7 +88,7 @@ export async function unbindChat(sql: Sql, chatId: string): Promise<void> {
 /**
  * FR-19. pinned_text is stored so the next refresh can skip an unchanged edit
  * rather than send it and collect Telegram's 400 "message is not modified"
- * (design 2.2.3). It is a rendered string and is never read back as data.
+ * (phase 2 design 2.3). It is a rendered string and is never read back as data.
  */
 export async function recordPin(
   sql: Sql,
