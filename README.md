@@ -1,153 +1,191 @@
 # Sports Competition
 
-A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
-University student guilds. One tap per day, guilds ranked on active days per member.
+A small Telegram bot that runs a time-boxed physical activity competition between Aalto University
+student guilds. Each member taps one button a day to say roughly how much they moved. Guilds are
+ranked on active days per member, across their whole roster, so the way to win is more people
+moving rather than a few people training hard.
 
-**Status:** Phases 1 to 3 are built: registration, `/log`, `/me`, `/standings`, the group chat
-(binding, pinned standings, the Monday post), and reminders with their five-ignore auto-stop and
-`/remind`. Phase 4's code is also done, the restore-fidelity test that proves a backup is worth
-having and the decoder hardening against trailing junk, but Phase 4 itself is not complete: it
-reduces to NFR-3, a nightly backup, and NFR-3 is met by deploying this bot's database onto
-Tietokilta's infrastructure, which has not happened yet ([SPEC.md](SPEC.md) NFR-3). English, and
-reminders are a per-user choice. FR-11's optional tag is cut ([SPEC.md](SPEC.md) §9 Q5). Phase 5,
-the fun pass, is built and unsmoked like the rest: a celebration when a week crosses the target,
-the streak named on that confirmation, heads that scale with the tier, a Monday post that counts
-the people who logged rather than printing a share, and since 2026-09-08 the competition clock
-("Week 5 of 8"), the local race in the Monday post, and a self-chosen weekly target via `/target`
-([the Phase 5 design](docs/superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) holds the
-research and the admission scale behind it).
+It is one long-polling process and one PostgreSQL database. There is no web app, no domain and no
+inbound port. MIT licensed: do whatever you like with it.
 
-Three things gate real use. Nothing is deployed yet, so there is no off-machine backup of anything
-(see Deploy below). No phase's smoke run has been done ([docs/SMOKE.md](docs/SMOKE.md)). And
-competition dates are still a placeholder in `src/config.ts` ([SPEC.md](SPEC.md) §9 Q1).
+## What a member sees
 
-## Start here
+Everything happens in a private chat with the bot, except the standings, which also live in each
+guild's group chat.
 
-| Document | What it's for |
+- **Joining.** A guild posts its own link (`https://t.me/<bot>?start=<slug>`). Opening it registers
+  the member for that guild, explains the rules in one message, and asks whether they want a daily
+  reminder and at what hour. Reminders are opt-in and never defaulted.
+- **Logging.** `/log` (or the reminder itself) shows four buttons: *15 to 30 min*, *30 to 60 min*,
+  *60+ min* and *Not today*. One tap is the whole check-in. Tapping again replaces the day, there
+  is an undo, and yesterday can be logged in case of forgetting. The confirmation shows the week's
+  progress bar toward the personal target and names the guild the day counted for. Crossing the
+  weekly target for the first time gets a celebration reaction, and a run of weeks on target is
+  named as a streak.
+- **`/me`.** The week's bar, the streak, the guild's rank this week, and up to three guildmates
+  ranked around the member. There is deliberately no leaderboard of individuals anywhere.
+- **`/standings`.** Two tables, this week and the season, ranked on active days per member.
+  What is printed is the count of active days and the rank, never an average.
+- **The group chat.** A guild's board adds the bot to their group, and it keeps a pinned standings
+  message up to date. Every Monday morning it posts last week's result for that guild, the number
+  of people who logged at least once, and the mark to beat. The last Monday closes the season.
+- **`/remind`, `/target`.** Change the reminder hour, or turn reminders off. Raise the weekly target
+  above the 150-minute WHO guideline. Five unanswered reminders in a row pause them and ask once
+  whether to continue; the bot never nags after that.
+
+Every rule above has a reason, usually a trial or a review in exercise psychology, and
+[docs/evidence.md](docs/evidence.md) cites it. Several obvious features (an individual leaderboard,
+scoring by sport, a Mini App, posting participation as a percentage) were rejected on evidence and
+are listed with their reasons in [SPEC.md](SPEC.md) section 8.
+
+## How it works
+
+The design fits in a few sentences:
+
+- **One tap a day, four coarse tiers.** No sport taxonomy, so there is nothing to argue about or
+  to verify. The top tier is capped, which bounds both the reward for training hard and the value
+  of lying.
+- **Active days per member across the whole roster.** Everyone in the guild counts, logging or not.
+  A day is a day whoever logs it, so nobody can carry a guild and the competitive members become
+  recruiters.
+- **Nothing is ever totalled and stored.** The database holds the tier each user tapped, and every
+  number a person sees is derived from that at read time. Corrections, undo and config changes
+  recompute for free, and nothing can drift.
+- **The message comes to you.** Forgetting is what ends these competitions, not friction, so the
+  reminder lands at the hour the member chose and silences itself when ignored.
+- **No session state in the process.** Every button carries its full meaning, so a tap on a
+  message sent before a restart still works, and payloads that could be stale (a check-in from
+  last week) are refused rather than trusted.
+
+The code is TypeScript on [Bun](https://bun.sh) with [grammY](https://grammy.dev) and
+[postgres.js](https://github.com/porsager/postgres). Dependencies point one way, so scoring is
+never tested through Telegram:
+
+```
+config.ts -> domain/ (pure) -> db/ (SQL) -> bot/handlers -> bot/render.ts (pure)
+```
+
+Dates and week boundaries are computed in SQL in `Europe/Helsinki`, because the window straddles a
+clock change and JavaScript date arithmetic gets that wrong.
+
+## Repository map
+
+| Path | What it is |
 |---|---|
-| **[SPEC.md](SPEC.md)** | The requirements. Numbered, testable, with a build order. This is the source of truth |
-| [docs/evidence.md](docs/evidence.md) | Primary citations for every design decision, with exact figures and the claims that did not survive checking |
-| `prototype/bot-flows.html` (git history only) | Clickable mockup of every screen, deleted in commit 77507ee. `git show 77507ee^:prototype/bot-flows.html > /tmp/bot-flows.html` and open that in a browser |
+| `src/config.ts` | The only place guilds, member counts, competition dates, tier minutes and the target exist |
+| `src/domain/` | Pure functions: scoring, streaks, ranking, the Monday-post and reminder decisions |
+| `src/db/` | All SQL, including the migrations. `calendar.ts` is where every date bucket comes from |
+| `src/bot/` | The grammY handlers, one file per flow, plus `render.ts` (pure formatting) and `ticker.ts` (the 60-second loop behind the pin, the Monday post and the reminders) |
+| `src/strings.ts` | Every piece of copy the bot sends |
+| `tests/` | The automated suite. `tests/db/` runs against a disposable Postgres |
+| `SPEC.md` | The requirements, numbered FR-1 to FR-31 and NFR-1 to NFR-6. Code comments cite these |
+| `docs/design/` | One design document per build phase, recording the decisions the spec leaves open |
+| `docs/evidence.md` | The sources behind every design decision, and the claims that did not survive checking |
+| `docs/research/` | The research briefings the fun pass and the scoring rule were built from |
+| `docs/SMOKE.md` | The manual checklist for the Telegram-facing code, which has no automated tests by design |
+| `docs/smoke-runs/` | Reports from running that checklist against a live bot |
+| `CLAUDE.md` | The maintainer's guide: the invariants that are easy to break, and why each one matters |
+| `scripts/` | Dump and restore a self-hosted database by hand |
+
+If you want to read the project rather than the code, the order is [SPEC.md](SPEC.md) sections 1,
+4 and 8, then [docs/evidence.md](docs/evidence.md), then the design documents in date order.
 
 ## Run it locally
 
-1. `cp .env.example .env`, then fill it in: `BOT_TOKEN` from [@BotFather](https://t.me/BotFather)
-   (`/newbot`, then copy the token it gives you), and a `POSTGRES_PASSWORD` of your choosing.
-   `DATABASE_URL` already matches `docker-compose.yml`; leave it as is. `.env` is gitignored and
-   never committed.
-2. `docker compose up -d --build` starts the bot and its database. Logs: `docker compose logs -f
-   bot`.
-3. **Any change under `src/` needs `docker compose up -d --build`, not `docker compose restart
-   bot`.** The image copies `src` in at build time and nothing bind-mounts it, so a restart quietly
-   keeps running the previous configuration.
+You need [Bun](https://bun.sh) and Docker.
 
-**This compose setup is the development and test path, not the deployment.** The `db` service is a
-throwaway database in a local volume. It is not the competition's data and it is not what gets
-backed up. See below for what is.
+1. `cp .env.example .env`, then fill in `BOT_TOKEN` from [@BotFather](https://t.me/BotFather)
+   (`/newbot`, then copy the token) and a `POSTGRES_PASSWORD` of your choosing. `DATABASE_URL`
+   already matches `docker-compose.yml`. `.env` is gitignored.
+2. `docker compose up -d --build` starts the bot and its database. `docker compose logs -f bot`
+   shows the boot log, which prints the competition window and then `@<bot> polling`.
+3. **Any change under `src/` needs `docker compose up -d --build`, not `docker compose restart bot`.**
+   The image copies `src` in at build time, so a restart keeps running the old code.
+
+The compose `db` service is a throwaway database in a local volume. It is the development path,
+not a deployment, and nothing backs it up.
+
+On a network that sinkholes `api.telegram.org` (some university networks do) the bot hangs before
+its polling line. An untracked `docker-compose.override.yml` with
+`extra_hosts: ["api.telegram.org:<real ip>"]` on the bot service gets it through.
+
+## Test it
+
+```bash
+bun run test:db          # starts the disposable db-test container, then the full suite
+bun test tests/domain    # one directory; the pure tests need no database
+bunx tsc --noEmit        # typecheck; there is no linter
+```
+
+`bun test` alone fails on `tests/db/*` unless the `db-test` service is up. The Telegram-facing
+handler files are covered by [docs/SMOKE.md](docs/SMOKE.md) instead, on purpose: what they do is
+send messages, and the decisions behind those messages are pure functions with their own tests.
+
+Never run the `test` compose profile on a production host. `db-test` binds a host port and uses a
+throwaway password.
+
+## Status
+
+- **Built.** Registration, logging, `/me`, `/standings`, the group chat with its pinned standings
+  and Monday post, reminders with the five-ignore pause, `/remind`, `/target`, the celebration and
+  the streak. The automated suite passes and the first manual smoke run was done on 2026-09-08
+  ([docs/smoke-runs/2026-09-08.md](docs/smoke-runs/2026-09-08.md)).
+- **Not yet deployed.** The intended home is Tietokilta's infrastructure (below), and that change
+  has not been raised. Until then there is no off-machine backup of anything.
+- **Not yet smoked with real people.** The smoke run used one account and one group. The reminder
+  hour, the five-ignore follow-up, a second account's registration and days passing are still
+  untested against Telegram.
+- **Competition dates are placeholders** in `src/config.ts` (SPEC.md section 9 Q1), and the nine
+  member counts are carried over from the previous system and need re-verifying: they are the
+  denominator of every ranking.
 
 ## Deploy
 
 The bot is built to run on Tietokilta's infrastructure
 ([`Tietokilta/infra`](https://github.com/Tietokilta/infra)): the process as a NixOS service on
 `tikpannu` beside the guild's other Telegram bots, and the database on the shared Azure PostgreSQL
-flexible server. **That is the deployment this repository targets, and it has not been carried out
-yet:** the infra change below has not been raised, so nothing described here is running today.
-
-Putting the database there is also what will satisfy NFR-3, and it is the reason the requirement
-needs no backup code here. That backup system enumerates every non-system database on the server
-nightly, dumps each one and ships it off-site with a 7 daily plus 4 weekly retention, so this bot's
-data is covered from the moment the database exists. **Until that database exists, there is no
-off-machine backup of anything.** What this repository provides is `tests/db/restore.test.ts`, which
-proves a dump restores into an empty database and reproduces every published number exactly, in both
-dump formats.
-
-### What the infra change has to contain
+flexible server. Putting the database there is what satisfies the backup requirement (SPEC.md
+NFR-3): that server's databases are dumped nightly and shipped off-site, so this bot's data is
+covered from the moment its database exists. What this repository provides toward it is
+`tests/db/restore.test.ts`, which proves a dump restores into an empty database and reproduces
+every published number, in both dump formats.
 
 | Piece | Where | Note |
 |---|---|---|
-| Database | a Terraform module calling `modules/service_database` | The `db_name` is what the nightly backup discovery picks up. Nothing further is needed for NFR-3 |
-| Bot package | `Tietokilta/tikbots` | The flake `modules/tikbots/default.nix` imports, and how the other bots reach `tikpannu` |
-| NixOS service | `tikpannu-nixos-config/modules/tikbots/` | Follow `tikbot.nix`: a sops secret for the token and a `sops.templates` env file owned by the service user |
-| Secrets | `tikpannu-nixos-config/modules/secrets/` | `BOT_TOKEN` and `DATABASE_URL`. The database password is generated by `service_database` |
-| `DATABASE_URL` | that env file | Must end `?sslmode=require`. Azure PostgreSQL requires TLS, and postgres.js reads `sslmode` straight from the URL, so no code change is needed |
+| Database | a Terraform module calling `modules/service_database` | The `db_name` is what the nightly backup discovery picks up |
+| Bot package | `Tietokilta/tikbots` | The flake `modules/tikbots/default.nix` imports |
+| NixOS service | `tikpannu-nixos-config/modules/tikbots/` | Follow `tikbot.nix`: a sops secret for the token and an env file owned by the service user |
+| Secrets | `tikpannu-nixos-config/modules/secrets/` | `BOT_TOKEN` and `DATABASE_URL`. The database password comes from `service_database` |
+| `DATABASE_URL` | that env file | Must end `?sslmode=require`. postgres.js reads it from the URL, so no code change is needed |
 
-Before pointing any of this at a real competition, replace the placeholder dates in `src/config.ts`
-(`COMPETITION_START` / `COMPETITION_END`) and re-verify every guild's `memberCount`: it is the
-denominator of every ranking, so a stale count silently distorts every comparison.
+Anyone self-hosting instead can run the compose stack on a small VPS or a home server. Two
+containers, one machine. `scripts/dump.sh` and `scripts/restore.sh` move such an instance by hand;
+they are a convenience, not a backup.
 
-`scripts/dump.sh` and `scripts/restore.sh` remain for moving a self-hosted instance by hand. They
-are a convenience, not the backup.
-
-A guild's board adds the bot to their own group chat with `https://t.me/<bot>?startgroup=<slug>`
-(their guild's slug from `src/config.ts`), which binds the chat and starts a pinned standings
-message that keeps itself updated. Pinning needs the bot to be a chat admin with permission to
-pin; without that permission the same message still appears and still updates, just unpinned,
-with a line asking for admin rights until it gets them.
-
-### Stopping the group chat features without stopping the bot
-
-This section is about a compose deployment: local, or a guild self-hosting instead of using
-Tietokilta's infrastructure. There is no dedicated switch for this yet. Two levers exist today, and
-neither is free:
-
-- `docker compose stop bot` stops the ticker along with everything else: registration, `/log`,
-  `/me` and `/standings` all go down too, not just the pinned standings and the Monday post.
-- `DELETE FROM chats` (or a per-row delete) unbinds every affected group chat immediately, so the
-  ticker stops touching them on its next tick. **This is not a clean off switch.** The same row
-  also carries `pinned_message_id` and `last_monday_week`, so deleting it destroys both along with
-  the binding. If a board later rebinds the chat, the fresh row seeds `last_monday_week` to the
-  week of the rebind (see `bindChat` in `src/db/chats.ts`), which can suppress that week's Monday
-  post if it had not actually fired yet, and the message that was pinned before the delete is
-  orphaned: still pinned in the chat, but no longer tracked, so the bot can neither update nor
-  unpin it.
-
-**Never run the `test` compose profile (`db-test`) on a self-hosted production host.** It binds a
-port on the host and uses a throwaway password; it exists only for `bun test` against a disposable
-database.
-
-**On a network that sinkholes `api.telegram.org`** (some university networks resolve it to an
-address that never answers), the bot hangs before its "polling" line. Drop a local, untracked
-`docker-compose.override.yml` beside the compose file pinning the API's real address for the bot
-service (`extra_hosts: ["api.telegram.org:<ip from 8.8.8.8>"]`); the boot log prints the window
-and then `@<bot> polling` when it is through.
-
-## The design in six lines
-
-- **One tap a day.** Three coarse duration tiers plus a rest day. No sport taxonomy, so there is
-  nothing to argue about.
-- **The message comes to you** at an hour you choose, and silences itself after five ignores.
-  Forgetting is the failure that ends these competitions, not friction.
-- **A weekly target of 150 minutes**, taken from the WHO guideline, so there is a win available to
-  everyone that does not require beating anyone.
-- **Guilds ranked per member across the whole roster**, weekly and cumulative, so last place is
-  never permanent.
-- **Nothing is ever totalled and stored.** The database records what the user tapped; every number
-  is derived at read time, so corrections and rule changes recompute for free.
-- **Bot only, long polling.** No web app, no domain, no TLS, no inbound ports. It runs on a home
-  server or a small VPS.
-
-Roughly 2,300 lines of logic, two containers, one machine. See [SPEC.md](SPEC.md) NFR-6 for the
-size trend (the 2,000-line ceiling was removed on 2026-09-08) and the note recording why its
-original 1,300 estimate was low.
+Before pointing any deployment at a real competition: set the real dates in `src/config.ts`,
+re-verify every guild's `memberCount`, and read the launch notes below.
 
 ## Launch notes
 
 Things the bot cannot do for you, in the order they come up:
 
-- **Verify the nine member counts** in `src/config.ts` and set the real competition dates
-  (SPEC.md §9 Q1). The bot prints the window at every boot and warns when today is outside it.
-- **Post each guild's own link** (`https://t.me/<bot>?start=<slug>`) in that guild's chat, and add
-  the bot to the chat with permission to pin. The bot sets its own profile texts and command menu.
+- **Post each guild's own link** (`https://t.me/<bot>?start=<slug>`, slugs in `src/config.ts`) in
+  that guild's chat, and add the bot to the chat with permission to pin. Adding it with
+  `https://t.me/<bot>?startgroup=<slug>` binds the chat in one step. Without pin permission the
+  standings message still appears and updates, with a line asking for admin rights.
 - **Ask each guild board for two or three well-liked, ordinary-fitness members** to log and say so
   in the guild chat in weeks one and two. Seeding through nominated friends is the one recruitment
-  method with trial evidence behind it ([docs/evidence.md](docs/evidence.md) §6.7); seeding through
-  the fittest or the best connected is not.
+  method with trial evidence behind it ([docs/evidence.md](docs/evidence.md) section 6.7).
 - **Do not post totals, averages or shares yourself.** The bot shows counts and ranks only, on
-  purpose (SPEC.md §4.3, §8).
+  purpose (SPEC.md sections 4.3 and 8).
+- **There is no off switch for the group chat alone.** Stopping the bot stops everything, and
+  deleting a chat's row unbinds it but orphans the pinned message. Decide which before you need
+  it.
 
-## Relationship to the earlier bot
+## History
 
-This replaces [`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot) and was
-designed from scratch rather than derived from it. [SPEC.md](SPEC.md) §2 records the specific
-defects worth not repeating, and §8 records the alternatives that were rejected and why. Read §8
-before re-adding anything that seems obviously missing.
+This replaces [`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot), and was
+designed from scratch rather than derived from it. [SPEC.md](SPEC.md) section 2 records the
+defects worth not repeating. The bot was built in five phases between July and September 2026,
+each with a design document in `docs/design/`, and the size is tracked as a trend rather than
+capped (SPEC.md NFR-6): about 2,300 effective lines of application code.

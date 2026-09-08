@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-31
 **Status:** Approved, not implemented.
-**Covers:** [SPEC.md](../../../SPEC.md) §10 Phase 3: FR-21, FR-22, FR-23, FR-24, and the two
+**Covers:** [SPEC.md](../../SPEC.md) §10 Phase 3: FR-21, FR-22, FR-23, FR-24, and the two
 carry-forwards both earlier designs assign here.
 **Does not cover:** Phase 4. Section 9 below lists exactly what is deferred.
 

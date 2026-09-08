@@ -24,8 +24,8 @@ some keep moving after the competition ends. The competition is the nudge, not t
 
 Three briefings were compiled for this design, one each on game design, behaviour change and
 Telegram's capabilities, from primary sources where they could be reached; they are kept in
-[docs/research/](../../research/). Section 2 is the distillation, and the sources that changed a
-decision are entered in [docs/evidence.md](../../evidence.md) §5 after a second check of each
+[docs/research/](../research/). Section 2 is the distillation, and the sources that changed a
+decision are entered in [docs/evidence.md](../evidence.md) §5 after a second check of each
 citation.
 
 Requirements touched: FR-12, FR-13, FR-20, FR-27, and a new FR-28.
@@ -36,7 +36,7 @@ No phase's smoke run has been done. Phase 5 adds one thing that makes the gap sh
 celebration (5.1) relies on a Telegram behaviour documented nowhere, a bot reacting to a message it
 sent itself in a private chat. The method text restricts only service messages, paid and custom
 emoji and a chat's `available_reactions`, never the author, and the tracker has no word either way.
-One runtime test settles it, and the Phase 5 section of [docs/SMOKE.md](../../SMOKE.md) is that
+One runtime test settles it, and the Phase 5 section of [docs/SMOKE.md](../SMOKE.md) is that
 test. The fallback is recorded in 5.1 so the smoke run has a next step if it fails.
 
 ### 1.2 What "compete with commercial games" honestly means here
@@ -407,7 +407,7 @@ Tests first, then code, as in every phase.
 | `tests/db/standings.test.ts` (edited); `tests/db/restore.test.ts` (unchanged, compares whatever `participation()` returns) | `participation()` as a count (5.4) |
 | `bun test`, `bunx tsc --noEmit` | everything else stays green |
 | The counting command in CLAUDE.md | section 8 |
-| [docs/SMOKE.md](../../SMOKE.md), Phase 5 section | the reaction rendering and animating, and being refused (1.1); every copy change on a real phone |
+| [docs/SMOKE.md](../SMOKE.md), Phase 5 section | the reaction rendering and animating, and being refused (1.1); every copy change on a real phone |
 
 `checkin.ts` and the ticker's Telegram calls stay untested by design, as before; the smoke section
 is their acceptance basis.

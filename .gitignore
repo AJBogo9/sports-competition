@@ -12,3 +12,8 @@ backups/
 .idea/
 .vscode/
 docker-compose.override.yml
+
+# Local tooling state, never part of the project
+.claude/
+.superpowers/
+.wrangler/

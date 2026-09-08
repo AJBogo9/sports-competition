@@ -394,7 +394,7 @@ Be ready for these, because they are the honest gaps.
 
 ## 5. Sources added by the fun pass (Phase 5, 2026-09-07)
 
-Compiled for [the Phase 5 design](superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) from
+Compiled for [the Phase 5 design](design/2026-09-07-telegram-bot-phase-5-design.md) from
 three briefings kept in [docs/research/](research/). Only sources that changed a decision are
 entered here. Each citation was checked against the publisher, PubMed Central or the Semantic
 Scholar record; two are noted where the publisher page refused automated fetching. One correction

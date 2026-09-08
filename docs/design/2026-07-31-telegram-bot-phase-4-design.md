@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-31
 **Status:** Approved, not implemented.
-**Covers:** [SPEC.md](../../../SPEC.md) §10 Phase 4, which after section 1 below reduces to NFR-3
+**Covers:** [SPEC.md](../../SPEC.md) §10 Phase 4, which after section 1 below reduces to NFR-3
 and its acceptance test, plus two carry-forwards parked by the Phase 3 review.
 **Does not cover:** the `Tietokilta/infra` changes that deploy this. Section 6 specifies them
 precisely; section 9 records them as deferred to that repository.
@@ -76,7 +76,7 @@ recorded as a decided question (§9 Q5) rather than as a deviation.
 
 Four reasons, in the order they carry weight:
 
-1. **It was never designed.** [prototype/bot-flows.html](../../../prototype/bot-flows.html) has no
+1. **It was never designed.** `prototype/bot-flows.html` (git history only, `git show 77507ee^:prototype/bot-flows.html`) has no
    tag screen. CLAUDE.md makes that mockup the authority for keyboard order and copy, so building
    tags means inventing a screen at the exact moment the budget runs out.
 2. **It serves no success criterion.** SPEC.md §1 names four: registration rate, week-1 and
@@ -159,7 +159,7 @@ thing.
 ## 4. The restore-fidelity test
 
 This is the phase's one real deliverable, and it is the whole of §10's acceptance test. It is also
-the only gate in this project that can be automated: unlike [docs/SMOKE.md](../../SMOKE.md) it needs
+the only gate in this project that can be automated: unlike [docs/SMOKE.md](../SMOKE.md) it needs
 no second Telegram account and no overnight wait.
 
 An untested restore is the classic way a backup fails, and this project has an unusually clean
@@ -300,7 +300,7 @@ payloads no client produces, and everything else is tests and documents.
 ### 7.1 The precondition this phase still does not satisfy
 
 No phase's smoke run has been done. Phases 1, 2 and 3 are built and none has been manually verified
-against [docs/SMOKE.md](../../SMOKE.md). This is now stated in four design documents. It cannot be
+against [docs/SMOKE.md](../SMOKE.md). This is now stated in four design documents. It cannot be
 automated: the checklist needs two real Telegram accounts tapping inline buttons and two steps need
 an overnight wait. It remains the gate on real users, not on writing code, and Phase 4 does not
 change that in either direction.

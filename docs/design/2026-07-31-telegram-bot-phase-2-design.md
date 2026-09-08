@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-31
 **Status:** Approved, not implemented.
-**Covers:** [SPEC.md](../../../SPEC.md) §10 Phase 2: FR-17 group scopes, FR-18, FR-19, FR-20.
+**Covers:** [SPEC.md](../../SPEC.md) §10 Phase 2: FR-17 group scopes, FR-18, FR-19, FR-20.
 **Does not cover:** Phases 3 and 4. Section 9 below lists exactly what is deferred.
 
 SPEC.md is the source of truth for *what* and *why*. This document is *how*, and it records the
@@ -147,7 +147,7 @@ refusal names the current guild, so an admin who genuinely wants to change it le
 "chat not found" while editing a pin, which self-heals a chat the bot was removed from while the
 process was down, since that `my_chat_member` update expires from Telegram's 24-hour retention.
 
-`/start` in a group currently falls through: [registration.ts](../../../src/bot/registration.ts)
+`/start` in a group currently falls through: [registration.ts](../../src/bot/registration.ts)
 returns early on non-private chats. The group branch is an addition to `group.ts`, not a change to
 registration, and the private path is untouched.
 
@@ -367,7 +367,7 @@ supergroup ids intact (2.2); `participation` counting a rest-only user and exclu
 never logged, with the roster as denominator; `last_monday_week` recording and reading back.
 
 **Explicitly not verifiable here:** `group.ts` and the ticker's API calls, consistent with the three
-Phase 1 handler files. They get a new Phase 2 section in [docs/SMOKE.md](../../../docs/SMOKE.md),
+Phase 1 handler files. They get a new Phase 2 section in [docs/SMOKE.md](../SMOKE.md),
 covering the link path, the picker path, a non-admin tap being refused, the pin updating without a
 notification, and the pin-rights message appearing and then resolving when the bot is promoted.
 

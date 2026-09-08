@@ -34,16 +34,16 @@ port and uses a throwaway password.
   FR-31, NFR-1 to NFR-6); code comments cite these IDs and so should yours. §8 lists deliberately
   rejected alternatives (Mini App, MET-based scoring, individual leaderboard). Re-adding one is a
   defect, so read §8 before adding anything that looks obviously missing. §10 is the build order.
-- [docs/superpowers/specs/2026-07-30-telegram-bot-phase-1-design.md](docs/superpowers/specs/2026-07-30-telegram-bot-phase-1-design.md)
+- [docs/design/2026-07-30-telegram-bot-phase-1-design.md](docs/design/2026-07-30-telegram-bot-phase-1-design.md)
   resolves what SPEC.md leaves open for Phase 1. Comments cite it as "design 4.x".
-  [The Phase 2 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-2-design.md) does the
+  [The Phase 2 design](docs/design/2026-07-31-telegram-bot-phase-2-design.md) does the
   same for the group chat, and its comments cite it as "phase 2 design N.N".
-  [The Phase 3 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-3-design.md) does the
+  [The Phase 3 design](docs/design/2026-07-31-telegram-bot-phase-3-design.md) does the
   same for reminders, and its comments cite it as "phase 3 design N.N".
-  [The Phase 4 design](docs/superpowers/specs/2026-07-31-telegram-bot-phase-4-design.md) does the
+  [The Phase 4 design](docs/design/2026-07-31-telegram-bot-phase-4-design.md) does the
   same for the restore-fidelity test and the deployment target, and its comments cite it as
   "phase 4 design N.N".
-  [The Phase 5 design](docs/superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) does the
+  [The Phase 5 design](docs/design/2026-09-07-telegram-bot-phase-5-design.md) does the
   same for the fun pass (the celebration, the streak on the confirmation, the tier heads, the
   Monday post's count and closing line), holds the feature admission scale every future feature is
   scored against (SPEC.md §9 Q6), and its comments cite it as "phase 5 design N.N". Its section 10
@@ -57,11 +57,6 @@ port and uses a throwaway password.
   cited as "phase 5 design 12.N"; docs/evidence.md §6 holds the sources. Its section 13 is the
   finish pass (FR-31): a correctness critic and a polish critic, every finding tested, the ones
   that held fixed, cited as "phase 5 design 13.N".
-- `.superpowers/sdd/<date>-telegram-bot-phase-<n>/progress.md` is the per-phase build ledger: every
-  finding, ruling and deferred item, in order. `HANDOVER.md` beside it is the state summary.
-  **These are local-only.** `.superpowers/sdd/.gitignore` contains `*`, so they are not in the
-  repository and a fresh clone will not have them. They are listed here because they are the most
-  useful context on the machine that has them, not because you can expect to find them.
 - [docs/SMOKE.md](docs/SMOKE.md) is the manual checklist. It is the *only* acceptance basis for
   the Telegram-facing files that have no automated tests by design: `registration.ts`,
   `checkin.ts`, `reports.ts`, `group.ts`, `reminders.ts`, `target.ts`, and the Telegram calls

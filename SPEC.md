@@ -790,7 +790,7 @@ is not why it is cut, but it is why re-adding it should go through section 8 fir
 
 **Q6. Features are admitted by a scored utility rule.** *Decided 2026-09-07.* Every new and existing
 feature is scored 2 × Impact + Reach + Cost + Safety, each axis 0 to 5 and anchored in
-[the Phase 5 design](docs/superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) §3. Eighteen
+[the Phase 5 design](docs/design/2026-09-07-telegram-bot-phase-5-design.md) §3. Eighteen
 or more is built; 14 to 17 waits until the MVP is stable, meaning after the smoke runs; 13 or less
 is rejected and recorded in section 8; an existing feature stays at 14 or more. Size enters only
 through the Cost axis since the ceiling was removed (NFR-6, 2026-09-08).

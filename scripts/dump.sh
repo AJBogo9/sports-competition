@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Writes a timestamped dump to ./backups. Phase 4 adds the nightly cron and
-# ships the file off the machine, which is the part that actually protects a
-# running competition (NFR-3).
+# Writes a timestamped dump to ./backups, for moving a self-hosted instance by
+# hand. It is not the backup NFR-3 requires: that is met by hosting the database
+# on Tietokilta's PostgreSQL server, whose nightly dumps leave the machine.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

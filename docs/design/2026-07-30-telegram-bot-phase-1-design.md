@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-30
 **Status:** Approved, not implemented.
-**Covers:** [SPEC.md](../../../SPEC.md) §10 Phase 1, plus the deployment work needed to self-host it.
+**Covers:** [SPEC.md](../../SPEC.md) §10 Phase 1, plus the deployment work needed to self-host it.
 **Does not cover:** Phases 2 to 4. Section 9 below lists exactly what is deferred.
 
 SPEC.md is the source of truth for *what* and *why*. This document is *how*, and it records the
