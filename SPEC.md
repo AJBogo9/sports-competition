@@ -43,8 +43,8 @@ activity per member.
 | Inkubio | 400 |
 | Athene | 350 |
 
-These counts are carried over from the earlier system and **must be re-verified before use**. They
-are the per-capita denominator, so a stale count silently distorts every comparison.
+These counts are unverified and **must be checked before use**. They are the per-capita
+denominator, so a stale count silently distorts every comparison.
 
 ### Goals
 
@@ -80,32 +80,30 @@ in advance.
 
 ---
 
-## 2. Prior art, and why this is a rewrite
+## 2. Failure modes this design refuses
 
-An earlier system exists: [`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot).
-Roughly 4,250 lines across a grammY bot, a Bun API server and a React web app, deployed on
-Kubernetes with Flux CD. It was configured for a competition running 2025-12-24 to 2026-03-31.
+Activity-tracking bots of this shape fail in a handful of recurring ways. They are numbered here
+because design decisions elsewhere in this document, in the design documents and in code comments
+cite them as "section 2 defect N", and each one has a specific rule downstream that exists to rule
+it out.
 
-**This design was derived from first principles and deliberately does not inherit its structure.**
-It is recorded here only so its specific failures are not repeated.
+### The defects
 
-### Defects to avoid repeating
-
-1. **Points stored as a running total.** `users.points` was mutated on every write. Deletes, edits,
-   backdating and any rule change all required manual compensation, and drift was silent and
-   permanent. **This is the root defect** and several others followed from it.
-2. **Computed points stored without their inputs.** Activities recorded the resulting points but
-   not the MET value or its source version, so history could not be recomputed even when a value
-   was known to be wrong.
-3. **Debug endpoints shipped live.** `POST /api/simulation/activity/add` read a `points` value
-   straight from the request body and added it to a user's total, with no environment guard. Any
-   authenticated user could award themselves arbitrary points.
-4. **No `auth_date` check on Mini App initData**, combined with caching the raw initData string as
-   an auth result, so a captured string stayed valid indefinitely.
-5. **A uniqueness index stricter than its comment claimed.** It was documented as preventing
-   double-submits within a minute, but had no time component, so it silently rejected a legitimate
-   second identical activity on the same day.
-6. **A seven-step logging wizard**, which is the friction that produces mid-competition dropoff.
+1. **Points stored as a running total.** A points column mutated on every write means deletes,
+   edits, backdating and any rule change all need manual compensation, and drift is silent and
+   permanent. **This is the root defect** and several others follow from it.
+2. **Computed points stored without their inputs.** Recording the resulting points but not the
+   factor they came from, or its version, means history cannot be recomputed even when a value is
+   known to be wrong.
+3. **Debug or simulation endpoints shipped live.** A route that reads a points value straight from
+   the request and adds it to a user's total, with no environment guard, lets any authenticated
+   user award themselves arbitrary points.
+4. **No freshness check on Mini App authentication data**, combined with caching the raw string as
+   an auth result, so a captured string stays valid indefinitely.
+5. **A uniqueness index stricter than its comment claims.** Documented as preventing double-submits
+   within a minute, but with no time component, so it silently rejects a legitimate second identical
+   activity on the same day.
+6. **A multi-step logging wizard**, which is the friction that produces mid-competition dropoff.
 7. **No group-chat presence at all**, which is the one thing a bot can do that a website cannot.
 
 ---
@@ -577,8 +575,8 @@ schema, and without one Postgres may return different orderings across calls.
 ### Volume
 
 A few hundred users over six to eight weeks is on the order of 10,000 to 30,000 rows, well under
-50 MB with indexes. **No cache. No snapshot tables.** The predecessor's caching layer produced
-invalidation bugs to solve a performance problem that does not exist at this size.
+50 MB with indexes. **No cache. No snapshot tables.** A caching layer trades invalidation bugs
+for a performance problem that does not exist at this size.
 
 ### Privacy
 
@@ -628,10 +626,7 @@ MUST lose nothing, and Telegram's 24-hour update retention covers the gap.
 **NFR-6. Size.** Expect roughly **1,300 lines of application logic** (non-blank, non-comment), or
 about 1,800 raw, plus 250 to 350 lines of tests and around 120 lines of deployment configuration.
 
-Estimated bottom-up against section 5 and calibrated against the predecessor, whose `src/`
-tree measures 3,163 effective lines for a system with no reminders, no group-chat presence and no
-weekly reset, but with a seven-step wizard, a four-level activity hierarchy, profile and history
-menus, a caching layer and an API server.
+Estimated bottom-up against section 5.
 
 | Area | Effective lines |
 |---|---|

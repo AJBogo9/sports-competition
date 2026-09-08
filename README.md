@@ -136,8 +136,7 @@ throwaway password.
   hour, the five-ignore follow-up, a second account's registration and days passing are still
   untested against Telegram.
 - **Competition dates are placeholders** in `src/config.ts` (SPEC.md section 9 Q1), and the nine
-  member counts are carried over from the previous system and need re-verifying: they are the
-  denominator of every ranking.
+  member counts there are unverified: they are the denominator of every ranking.
 
 ## Deploy
 
@@ -181,11 +180,3 @@ Things the bot cannot do for you, in the order they come up:
 - **There is no off switch for the group chat alone.** Stopping the bot stops everything, and
   deleting a chat's row unbinds it but orphans the pinned message. Decide which before you need
   it.
-
-## History
-
-This replaces [`activity-challenge-bot`](https://github.com/AJBogo9/activity-challenge-bot), and was
-designed from scratch rather than derived from it. [SPEC.md](SPEC.md) section 2 records the
-defects worth not repeating. The bot was built in five phases between July and September 2026,
-each with a design document in `docs/design/`, and the size is tracked as a trend rather than
-capped (SPEC.md NFR-6): about 2,300 effective lines of application code.

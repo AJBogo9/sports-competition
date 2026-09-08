@@ -34,7 +34,7 @@ Bun, grammY, PostgreSQL, and `postgres.js` as the driver.
 
 | Choice | Reason |
 |---|---|
-| Bun | TypeScript with no build step, built-in test runner, built-in `.env`. Fewer support files means fewer lines against the NFR-6 budget. Already used in the predecessor |
+| Bun | TypeScript with no build step, built-in test runner, built-in `.env`. Fewer support files means fewer lines against the NFR-6 budget |
 | grammY | Long polling per NFR-1, no webhook, no inbound port |
 | `postgres.js` | Preferred over Bun's newer built-in SQL client, to keep the one layer that touches persisted data boring |
 | PostgreSQL | Fixed by SPEC.md §6 and NFR-2 |

@@ -109,7 +109,7 @@ solves NFR-3 better than this repository can.
   `modules/tikbots/tikbot.nix` establishes. Long polling with no inbound port (NFR-1) is exactly
   what that host expects: its firewall opens 80 and 443 only, and nothing needs to reach the bot.
 - **Database on the shared Azure PostgreSQL flexible server**, created through
-  `modules/service_database`, which is what the predecessor `modules/running-challenge` does.
+  `modules/service_database`, the pattern that repository already uses for its service databases.
 
 The second point is the one that matters. `modules/backup/azure/stage-postgresql.sh` is implemented,
 not merely planned, and its discovery is dynamic: it enumerates every non-system database on that
@@ -123,8 +123,8 @@ directory when the backup fails rather than discarding the evidence.
 this repository.** That is the whole point of the dynamic-discovery design, and NFR-3's binding
 words, "a nightly `pg_dump` MUST be shipped off the machine", are satisfied by it.
 
-Azure App Service, the other precedent in that repository, was rejected. `running-challenge` uses it
-because it has a web UI, which is why it sets `WEBSITES_PORT=3000`. This bot deliberately has no
+Azure App Service, the other precedent in that repository, was rejected. The service that uses it
+there has a web UI, which is why it sets `WEBSITES_PORT=3000`. This bot deliberately has no
 HTTP listener (NFR-1, and §8 rejects the Mini App), and App Service expects a port to health-check.
 
 ### 3.1 Three portability facts, verified rather than assumed
