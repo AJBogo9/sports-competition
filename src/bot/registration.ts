@@ -72,6 +72,15 @@ function reminderKeyboardIfUnasked(reminderAsked: boolean): InlineKeyboard | und
   return reminderAsked ? undefined : reminderKeyboard();
 }
 
+/**
+ * FR-1's deep link for a guild, built from the bot's own username so a recruit
+ * lands in the right guild with no extra tap (phase 5 design 12.4). ctx.me is
+ * the getMe result grammY fetched at start; neither part is user input.
+ */
+function deepLink(ctx: Context, slug: string): string {
+  return `https://t.me/${ctx.me.username}?start=${slug}`;
+}
+
 export function installRegistration(bot: Bot, sql: Sql): void {
   /**
    * FR-1: a guild deep link registers immediately with zero further input.
@@ -100,10 +109,14 @@ export function installRegistration(bot: Bot, sql: Sql): void {
         });
         return;
       }
-      await ctx.reply(alreadyRegistered(current?.name ?? existing.guildSlug), {
-        parse_mode: "HTML",
-        reply_markup: reminderKeyboardIfUnasked(existing.reminderAsked),
-      });
+      await ctx.reply(
+        alreadyRegistered(
+          current?.name ?? existing.guildSlug,
+          deepLink(ctx, existing.guildSlug),
+          !existing.reminderAsked,
+        ),
+        { parse_mode: "HTML", reply_markup: reminderKeyboardIfUnasked(existing.reminderAsked) },
+      );
       await sendCheckIn(ctx, sql, from.id);
       return;
     }
@@ -140,10 +153,14 @@ export function installRegistration(bot: Bot, sql: Sql): void {
           });
           return;
         }
-        await ctx.editMessageText(alreadyRegistered(current?.name ?? existing.guildSlug), {
-          parse_mode: "HTML",
-          reply_markup: reminderKeyboardIfUnasked(existing.reminderAsked),
-        });
+        await ctx.editMessageText(
+          alreadyRegistered(
+            current?.name ?? existing.guildSlug,
+            deepLink(ctx, existing.guildSlug),
+            !existing.reminderAsked,
+          ),
+          { parse_mode: "HTML", reply_markup: reminderKeyboardIfUnasked(existing.reminderAsked) },
+        );
         return;
       }
       await registerAndAsk(ctx, sql, guild.slug, true);
@@ -160,8 +177,11 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       await ctx.answerCallbackQuery(
         callback.hour === null ? TOAST_REMINDERS_OFF : toastReminderSet(callback.hour),
       );
+      const link = deepLink(ctx, user.guildSlug);
       await ctx.editMessageText(
-        callback.hour === null ? reminderOff(guildName) : reminderSet(callback.hour, guildName),
+        callback.hour === null
+          ? reminderOff(guildName, link)
+          : reminderSet(callback.hour, guildName, link),
         { parse_mode: "HTML" },
       );
       await sendCheckIn(ctx, sql, from.id);
@@ -174,11 +194,12 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       const before = await findUser(sql, from.id);
       await moveUser(sql, from.id, guild.slug);
       await ctx.answerCallbackQuery(TOAST_MOVED);
-      await ctx.editMessageText(moved(guild.name), {
+      const askMover = !(before?.reminderAsked ?? false);
+      await ctx.editMessageText(moved(guild.name, askMover), {
         parse_mode: "HTML",
         // See reminderKeyboardIfUnasked: moving guilds never touches the
         // reminder question, so a mover who was never asked still needs asking.
-        reply_markup: reminderKeyboardIfUnasked(before?.reminderAsked ?? false),
+        reply_markup: reminderKeyboardIfUnasked(!askMover),
       });
       return;
     }
@@ -187,10 +208,11 @@ export function installRegistration(bot: Bot, sql: Sql): void {
       const user = await findUser(sql, from.id);
       const guild = user ? guildBySlug(user.guildSlug) : undefined;
       await ctx.answerCallbackQuery();
-      await ctx.editMessageText(stayed(guild?.name ?? FALLBACK_GUILD), {
+      const askStayer = user ? !user.reminderAsked : false;
+      await ctx.editMessageText(stayed(guild?.name ?? FALLBACK_GUILD, askStayer), {
         parse_mode: "HTML",
         // See reminderKeyboardIfUnasked: staying never touches it either.
-        reply_markup: user ? reminderKeyboardIfUnasked(user.reminderAsked) : undefined,
+        reply_markup: askStayer ? reminderKeyboard() : undefined,
       });
       return;
     }

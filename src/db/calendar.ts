@@ -1,5 +1,5 @@
 import type { Sql } from "postgres";
-import { TIMEZONE } from "../config.ts";
+import { COMPETITION_END, COMPETITION_START, TIMEZONE } from "../config.ts";
 
 export interface Calendar {
   today: string;
@@ -7,6 +7,15 @@ export interface Calendar {
   weekStart: string;
   /** The hour 0 to 23 in TIMEZONE. FR-20's post fires against this, never UTC. */
   hour: number;
+  /**
+   * Phase 5 design 11.1. Which week of the competition today's week is, 1 on
+   * the week COMPETITION_START falls in. Not clamped: before the start it is 0
+   * or less and after the end it exceeds weekCount, and the renderer hides the
+   * clock in both cases rather than this pretending.
+   */
+  weekNumber: number;
+  /** How many weeks the competition spans, counted the same way. */
+  weekCount: number;
 }
 
 /**
@@ -26,14 +35,27 @@ export interface Calendar {
  */
 export async function calendar(sql: Sql, at: string | null = null): Promise<Calendar> {
   const [row] = await sql<
-    { today: string; yesterday: string; week_start: string; hour: number }[]
+    {
+      today: string;
+      yesterday: string;
+      week_start: string;
+      hour: number;
+      week_number: number;
+      week_count: number;
+    }[]
   >`
-    WITH local AS (SELECT (COALESCE(${at}::timestamptz, now()) AT TIME ZONE ${TIMEZONE}) AS ts)
-    SELECT (ts)::date::text                              AS today,
-           (ts::date - INTERVAL '1 day')::date::text     AS yesterday,
-           date_trunc('week', ts)::date::text            AS week_start,
-           EXTRACT(HOUR FROM ts)::int                    AS hour
-    FROM local
+    WITH local AS (SELECT (COALESCE(${at}::timestamptz, now()) AT TIME ZONE ${TIMEZONE}) AS ts),
+         span AS (
+           SELECT date_trunc('week', ${COMPETITION_START}::date)::date AS first_monday,
+                  date_trunc('week', ${COMPETITION_END}::date)::date   AS last_monday
+         )
+    SELECT (ts)::date::text                                          AS today,
+           (ts::date - INTERVAL '1 day')::date::text                 AS yesterday,
+           date_trunc('week', ts)::date::text                        AS week_start,
+           EXTRACT(HOUR FROM ts)::int                                AS hour,
+           ((date_trunc('week', ts)::date - first_monday) / 7 + 1)::int AS week_number,
+           ((last_monday - first_monday) / 7 + 1)::int               AS week_count
+    FROM local, span
   `;
   if (!row) throw new Error("calendar query returned no row");
   return {
@@ -41,6 +63,8 @@ export async function calendar(sql: Sql, at: string | null = null): Promise<Cale
     yesterday: row.yesterday,
     weekStart: row.week_start,
     hour: row.hour,
+    weekNumber: row.week_number,
+    weekCount: row.week_count,
   };
 }
 

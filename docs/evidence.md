@@ -261,6 +261,17 @@ design works.
 | Expect low conversion from signup to participation | 1.7 Niven et al. 2021 |
 | No promise of lasting habit change | 1.8 Lally et al. 2010 |
 | A non-comparative personal target | 1.9 Ryan & Deci 2000 (theory) |
+| A symbolic celebration when a week crosses the target, and no prizes (FR-28) | 5.1 Deci, Koestner & Ryan 1999; Vansteenkiste & Deci 2003 |
+| Confirmation copy that informs rather than pressures | 5.1 Deci, Koestner & Ryan 1999 |
+| The Monday post counts people who logged, never a share | 5.2 Schultz et al. 2007 |
+| The streak shown only while intact, never resetting | 5.3 Silverman & Barasch 2023 |
+| A local race for every guild (admitted, waiting on NFR-6) | 5.4 Gill et al. 2019 |
+| Nothing may add a tap to the log | 5.5 Michie et al. 2009; Harkin et al. 2016 |
+| The closing post written for newcomers | 5.6 Charness & Gneezy 2009 |
+| The standings stay the core; no sponsor, no collaboration mechanics | 5.7 Patel et al. 2019 |
+| A self-chosen weekly target deferred, not rejected | 5.7 Patel et al. 2021 |
+| The three-neighbour block is load-bearing | 5.8 Karau & Williams 1993 |
+| No motivational filler in reminders | 5.9 Wu et al. 2024 |
 
 ---
 
@@ -330,6 +341,31 @@ alongside 35.7, 38.5 and 20.3 for the other three arms. It is not a per-person w
 The correct per-person comparison is the one the abstract gives: mean 1.9 (SE 0.2) in the two
 comparison conditions versus 1.0 (SE 0.2) in the two without, p = 0.003.
 
+### 3.5 "A team slightly behind at half-time is more likely to win"
+
+**Status: failed replication. Do not build on it.** Berger and Pope's 2011 finding (a 2 to 6 point
+advantage for being slightly behind) did not survive a 2023 high-powered replication across four
+sports (*Management Science* 69(1):513-532); the effect holds only in the original NBA sample. The
+"close race" framing in Phase 5 rests on the rank-feedback finding in 5.4 instead.
+
+### 3.6 "It takes 21 days to form a habit"
+
+**Status: no empirical basis.** The figure traces to Maxwell Maltz's 1960 self-help book. Lally et
+al. (1.8) is the measured answer: a median of 66 days, a range of 18 to 254, and exercise habits
+slower than that.
+
+### 3.7 Streak statistics circulating in blogs
+
+**Status: untraceable, treat as fabricated.** An "npj Digital Medicine 2023" cohort of 1,247 streak
+users and a "CHI 2020" figure that 63% quit after a broken streak appear in habit-app blogs and
+trace to no paper. The one peer-reviewed result on broken streaks is 5.3.
+
+### 3.8 Push-notification opt-out thresholds
+
+**Status: uncited industry compilation.** "One weekly push makes 10% disable notifications" and
+"three to six a week make 40% opt out" come from an aggregator with no primary source. The trial
+evidence (1.6, and 5.9) is calmer: frequency alone did not move steps, irrelevant content did.
+
 ---
 
 ## 4. What no source here covers
@@ -344,6 +380,367 @@ Be ready for these, because they are the honest gaps.
   with accelerometer data, but we are not using IPAQ and should not claim its validation.
 - **Per-capita scoring against total roster size is untested.** It follows logically from wanting
   breadth rather than depth, but no source here evaluates it.
+- **No competition trial used a group anywhere near a guild's size.** Zhang et al. (1.1) compared
+  within networks of six; STEP UP's competition arm (5.7) used groups of three; the effort literature
+  (5.8) predicts loafing grows with the group. A guild of 350 to 700 ranked on a per-member average
+  is outside every trial here. Sub-squads of three to six are scored in the Phase 5 design (AC, 15)
+  and are held back by cost, not by evidence; SPEC.md §8's "elaborate team mechanics" row rejects
+  team-spirit features, not small groups, and should not be read as settling this.
 - **Nothing on Finnish student guild culture.** All of the above is US or UK.
 - **Self-report cannot be verified.** No source offers a fix, because there isn't one that does not
   require hardware.
+
+---
+
+## 5. Sources added by the fun pass (Phase 5, 2026-09-07)
+
+Compiled for [the Phase 5 design](superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) from
+three briefings kept in [docs/research/](research/). Only sources that changed a decision are
+entered here. Each citation was checked against the publisher, PubMed Central or the Semantic
+Scholar record; two are noted where the publisher page refused automated fetching. One correction
+found while checking: the ENGAGE trial (5.7) is in *JAMA Cardiology*, not *JAMA Network Open* as
+the habit briefing has it.
+
+### 5.1 Praise that informs raises intrinsic motivation; rewards that pressure lower it
+
+> Deci EL, Koestner R, Ryan RM. **A meta-analytic review of experiments examining the effects of
+> extrinsic rewards on intrinsic motivation.** *Psychological Bulletin*, 1999;125(6):627-668.
+> DOI [10.1037/0033-2909.125.6.627](https://doi.org/10.1037/0033-2909.125.6.627)
+
+> Vansteenkiste M, Deci EL. **Competitively contingent rewards and intrinsic motivation: Can losers
+> remain motivated?** *Motivation and Emotion*, 2003;27(4):273-299.
+> DOI [10.1023/A:1026259005264](https://doi.org/10.1023/A:1026259005264) (verified through the
+> Semantic Scholar record; Springer's page refuses automated fetching)
+
+**Design.** A meta-analysis of 128 experiments on rewards and free-choice intrinsic motivation, and
+a laboratory experiment on competition in which losers were or were not given an attainable
+standard with positive feedback for meeting it.
+
+**Results.** Expected tangible rewards undermine intrinsic motivation (d = -0.40 when contingent on
+engagement, -0.36 on completion, -0.28 on performance). Verbal praise enhances it (d = 0.33 on
+free-choice behaviour across the full set), and the split matters: informational praise d = +0.66
+and controlling praise d = -0.44, each against a no-feedback control. Those two figures come from
+the paper's supplemental analysis (Table 9) of the four studies that manipulated both kinds of
+praise, three of them with a control group, so they carry the weight of four experiments, not 128;
+re-read from the paper's text on 2026-09-07 after a critic queried them. Losers of a competition
+stay motivated when given an attainable standard and positive feedback for meeting it, and lose
+motivation under pressure to win.
+
+**What we changed.** FR-28: the one celebration in the product is symbolic (a reaction), fires only
+when the personal target is crossed, and there are no prizes. The confirmation heads scale with the
+tier and state a fact ("22 min. Counts.") rather than pressing. The personal target is the
+attainable standard that keeps a member of the ninth-placed guild in the competition.
+
+**Transfer.** The meta-analysis is broad and robust. The competition study is a laboratory task, not
+exercise; use it as the mechanism, not as a measured effect on activity.
+
+### 5.2 A broadcast low norm pulls the people above it down toward it
+
+> Schultz PW, Nolan JM, Cialdini RB, Goldstein NJ, Griskevicius V. **The constructive, destructive,
+> and reconstructive power of social norms.** *Psychological Science*, 2007;18(5):429-434.
+> DOI [10.1111/j.1467-9280.2007.01917.x](https://doi.org/10.1111/j.1467-9280.2007.01917.x)
+
+> Cialdini RB. **Crafting normative messages to protect the environment.** *Current Directions in
+> Psychological Science*, 2003;12(4):105-109.
+> DOI [10.1111/1467-8721.01242](https://doi.org/10.1111/1467-8721.01242)
+
+**Design.** Field experiment: 290 households told their neighbourhood's average energy use, half
+of them with an added injunctive signal (a smiley or frowning face).
+
+**Result.** Households above the average reduced consumption; households below it **increased**
+consumption toward the norm, the boomerang. Adding the injunctive signal removed the boomerang.
+Replicated since; the related hotel-towel result failed a German replication, so descriptive norms
+are not a reliable lever on their own.
+
+**What we changed.** The Monday post counts the people who logged instead of printing a share of
+the roster (FR-20). SPEC.md §1 expects a signup-to-participation base rate near 12%, so the share
+would have been a low norm sent to a whole guild chat every Monday. SPEC.md §8 now rejects any "N%
+of the guild" or "N logged today" line. The welcome's "Most people forget by week three" went the
+same way (Phase 5 design §10.2): Cialdini 2003 is the review that names the trap, a message that
+depicts the undesirable behaviour as regrettably common ("many people litter") carries the
+descriptive norm "many people do this", and the sentence was that message about lapsing, sent to
+every newcomer to sell the reminder. The reminder is still recommended, without the norm.
+
+**Transfer.** Energy use, not exercise, but the mechanism is about the message, not the behaviour,
+and the population effect (a whole chat reading one number) is exactly the situation.
+
+### 5.3 A highlighted broken streak reduces engagement
+
+> Silverman J, Barasch A. **On or off track: How (broken) streaks affect consumer decisions.**
+> *Journal of Consumer Research*, 2023;49(6):1095-1117.
+> DOI [10.1093/jcr/ucac029](https://doi.org/10.1093/jcr/ucac029)
+
+**Design.** Seven experiments, mostly online, holding actual behaviour constant and varying whether
+a log highlighted an intact streak, a broken one, or neither.
+
+**Result.** A highlighted intact streak increases continuation; a highlighted broken streak
+decreases it, more when people blame themselves for the break, and less when the break can be
+repaired or is attributed to outside causes.
+
+**What we changed.** The streak is named on the confirmation only once the target is met and only
+from two weeks up, and `/me` omits the line at zero. Nothing in the product ever says a streak
+ended. Streaks stay weekly (SPEC.md §8), which is the coarse, repairable form.
+
+**Transfer.** Consumer tasks rather than exercise, but the finding is about the display, and the
+display is what this project controls.
+
+### 5.4 Rank feedback is U-shaped
+
+> Gill D, Kissová Z, Lee J, Prowse V. **First-place loving and last-place loathing: How rank in the
+> distribution of performance affects effort provision.** *Management Science*, 2019;65(2):494-507.
+> DOI [10.1287/mnsc.2017.2907](https://doi.org/10.1287/mnsc.2017.2907) (verified through the
+> Semantic Scholar record; INFORMS's page refuses automated fetching)
+
+**Design.** Laboratory experiment with real-effort tasks and rank feedback with no payment attached
+to rank.
+
+**Result.** Effort rises most after being ranked first or last and least in the middle of the
+distribution: the response to rank is U-shaped.
+
+**What we changed.** A local race for every guild (the gap to the adjacent guild in the Monday
+post, in medium sessions over the reader's roster: "FK, one place up, was 3 sessions away.") passed
+the admission scale, because the middle of a nine-guild table is where motivation is flattest.
+Built 2026-09-08 once the size ceiling was removed (FR-20, Phase 5 design §11.2). The "slightly
+behind wins" folklore is not the basis; see 3.5.
+
+**Transfer.** Laboratory, individual effort. The direction is what transfers.
+
+### 5.5 Self-monitoring is the strongest single technique
+
+> Michie S, Abraham C, Whittington C, McAteer J, Gupta S. **Effective techniques in healthy eating
+> and physical activity interventions: A meta-regression.** *Health Psychology*, 2009;28(6):690-701.
+> DOI [10.1037/a0016136](https://doi.org/10.1037/a0016136)
+
+> Harkin B, Webb TL, Chang BPI, Prestwich A, Conner M, Kellar I, Benn Y, Sheeran P. **Does
+> monitoring goal progress promote goal attainment? A meta-analysis of the experimental evidence.**
+> *Psychological Bulletin*, 2016;142(2):198-229.
+> DOI [10.1037/bul0000025](https://doi.org/10.1037/bul0000025)
+
+**Results.** Interventions with self-monitoring had an effect of 0.42 against 0.26 without, and it
+explained the most between-study variance (122 evaluations, 44,747 participants). Prompting progress
+monitoring raised goal attainment by d = 0.40 across 138 RCTs, with larger effects when the record
+was written down and when it was reported to others.
+
+**What we changed.** Nothing, which is the point: the one-tap log is the most evidence-backed thing
+in the product, and Phase 5's admission scale scores any candidate that adds a tap to it at Safety 0.
+
+### 5.6 The habit that survives belongs to the newcomer
+
+> Charness G, Gneezy U. **Incentives to exercise.** *Econometrica*, 2009;77(3):909-931.
+> DOI [10.3982/ECTA7416](https://doi.org/10.3982/ECTA7416)
+
+**Design.** Two field experiments paying students to visit a gym eight times in a month, with
+attendance tracked after payment stopped.
+
+**Result.** Attendance stayed about twice as high after the incentive ended, entirely among people
+who had not been attending before; regulars gained nothing and sometimes attended less.
+
+**What we changed.** The closing post's last line is written for the previous non-exerciser: it
+hands the weekly target back as theirs to keep and asks for nothing (FR-20).
+
+**Transfer.** University students, gym attendance, a temporary incentive: close to ours in every
+respect except that the incentive here is a competition rather than money.
+
+### 5.7 Competition is the social arm that lasts; a self-chosen goal is the strongest missing element
+
+> Patel MS, Small DS, Harrison JD, et al. **Effectiveness of behaviorally designed gamification
+> interventions with social incentives for increasing physical activity among overweight and obese
+> adults across the United States: The STEP UP randomized clinical trial.** *JAMA Internal
+> Medicine*, 2019;179(12):1624-1632.
+> DOI [10.1001/jamainternmed.2019.3505](https://doi.org/10.1001/jamainternmed.2019.3505)
+
+> Patel MS, Bachireddy C, Small DS, et al. **Effect of goal-setting approaches within a gamification
+> intervention to increase physical activity among economically disadvantaged adults at elevated
+> risk for major adverse cardiovascular events: The ENGAGE randomized clinical trial.** *JAMA
+> Cardiology*, 2021;6(12).
+> DOI [10.1001/jamacardio.2021.3176](https://doi.org/10.1001/jamacardio.2021.3176)
+
+**Results.** STEP UP (602 adults, 24 weeks plus 12 of follow-up): the competition arm added 920
+steps a day during the programme and 569 afterwards; support added 689 then 428; collaboration 637
+then 126 (not significant). ENGAGE (500 adults): only the arm that chose its own goal and started
+it immediately worked, +1,384 steps a day during the intervention (95% CI 805 to 1,963) and +1,391
+at follow-up (785 to 1,998); assigned or gradual goals did not reach significance.
+
+**What we changed.** The guild ranking stays the core, and no sponsor or collaboration mechanic is
+added. A self-chosen weekly target (`/target`: 150, 225, 300 or 450 minutes, FR-29) was built on
+2026-09-08 once the size ceiling was removed, prompted by the owner's concern for members who train
+ten hours a week and had nothing left to reach after two days. It changes only the personal bar,
+the streak and the celebration; the guild's score is untouched. Nothing below the WHO line is
+offered until SPEC.md §9 Q7 is decided, which is the attainability half of this evidence still
+unapplied.
+
+**Transfer.** US adults, mostly overweight, with wearables. The social-arm ordering is consistent
+with Zhang et al. (1.1) in students, which is the population that matters here.
+
+### 5.8 Effort falls as groups grow unless contributions are identifiable
+
+> Karau SJ, Williams KD. **Social loafing: A meta-analytic review and theoretical integration.**
+> *Journal of Personality and Social Psychology*, 1993;65(4):681-706.
+> DOI [10.1037/0022-3514.65.4.681](https://doi.org/10.1037/0022-3514.65.4.681)
+
+**Result.** Across 78 studies, effort in collective tasks falls as groups grow (mean d about 0.44),
+and recovers when individual contributions are identifiable and evaluated.
+
+**What we changed.** Nothing built; one thing protected. A guild of hundreds ranked by a per-member
+average is close to the worst case, and the three-row "Around you" block in `/me` is the
+identifiability lever that keeps the average from dissolving into anonymity. It is scored as
+load-bearing in the Phase 5 design and must not be cut to save lines.
+
+### 5.9 Irrelevant messages cost steps
+
+> Wu J, Brunke-Reese D, Lagoa CM, Conroy DE. **Assessing the impact of message relevance and
+> frequency on physical activity change: A secondary data analysis from the Random AIM trial.**
+> *Digital Health*, 2024;10:20552076241255656.
+> DOI [10.1177/20552076241255656](https://doi.org/10.1177/20552076241255656)
+
+**Design.** Secondary analysis of a trial that randomised, within person, zero to six text messages
+a day for 180 days.
+
+**Result.** Total message frequency had no association with daily steps. Each additional message
+with irrelevant content (inspirational quotes) was associated with 82 to 104 fewer steps that day.
+
+**What we changed.** No motivational copy anywhere, and SPEC.md §8 now says so. The reminder stays
+the check-in message and nothing else (FR-21).
+
+---
+
+## 6. Sources behind the scoring change (2026-09-08)
+
+Two research briefings were commissioned before the guild ranking moved from minutes per member to
+active days per member ([team scoring](research/2026-09-08-team-scoring-briefing.md),
+[community mobilisation](research/2026-09-08-community-briefing.md)); each carries its full
+reference list. The entries below are the ones the decision rests on. Three figures were re-read
+from the primary record on 2026-09-08 by the author (marked *re-verified*); the rest are as the
+briefings report them, each briefing having resolved its DOIs through Crossref, PubMed or Semantic
+Scholar.
+
+### 6.1 Motivation gains for weaker members need conditions a guild cannot provide
+
+> Weber B, Hertel G. **Motivation gains of inferior group members: A meta-analytical review.**
+> *Journal of Personality and Social Psychology*, 2007;93(6):973-993.
+> DOI [10.1037/0022-3514.93.6.973](https://doi.org/10.1037/0022-3514.93.6.973)
+
+**Result.** Across 17 studies (N = 2,240) the Köhler gain for the weaker member is g = 0.60, and it
+appears under conjunctive demands (the group's result is the weakest member's) with performance
+information and small groups, not under additive ones (the group's result is the sum).
+
+**What we changed.** Nothing built on it, one claim withdrawn: active-day scoring bounds each
+contribution and removes the single carrier, but it does not make a newcomer "worth as much as an
+athlete" motivationally in a group of 500, because none of the three conditions (knowing you are
+the weaker member, being indispensable, feedback on it) hold. The guild rank is a rivalry frame,
+not a motivator of individual effort; the personal layer (target, streak, celebration) is what
+motivates. SPEC.md §9 Q9 records small-group structure as the missing ingredient.
+
+### 6.2 A team-only consequence does nothing on its own
+
+> Patel MS, Asch DA, Rosin R, et al. **Individual versus team-based financial incentives to
+> increase physical activity: A randomized, controlled trial.** *Journal of General Internal
+> Medicine*, 2016;31(7):746-754.
+> DOI [10.1007/s11606-016-3627-0](https://doi.org/10.1007/s11606-016-3627-0) *(re-verified)*
+
+**Result.** Four-person teams; the mean proportion of participant-days the step goal was met was
+0.18 in control, 0.17 with a team-only incentive (difference -0.003, p = 0.96), 0.25 with an
+individual incentive (p = 0.13), and 0.35 with the combination (difference 0.17, 95% CI 0.07 to
+0.28, p < 0.001).
+
+**What we changed.** Kept every personal element untouched by the scoring change: the bar, the
+target, the streak and the celebration are the individual half the trial says is required. SPEC.md
+§8 now rejects conjunctive and weakest-member scoring.
+
+### 6.3 The trials that made team competition work scored bounded units
+
+STEP UP (5.7) awarded 70 points on Monday and deducted 10 for each day the personal step goal was
+missed; its competition arm ranked three-person teams on cumulative points, and the outcome was
+device steps. Zhang et al. (1.1) scored class attendance. Patel 2016 (6.2) scored goal-days. The
+large step programmes that summed steps or minutes (Global Corporate Challenge, Stepathlon, Walk
+Kansas) are pre-post evaluations with self-entered data (C). No trial compares days with minutes
+head to head; the case for days rests on the currency of the randomised half and on the mechanism
+in 6.1 and 6.5.
+
+### 6.4 People shown that they are above the average cut their contribution
+
+> Chen Y, Harper FM, Konstan J, Li SX. **Social comparisons and contributions to online
+> communities: A field experiment on MovieLens.** *American Economic Review*,
+> 2010;100(4):1358-1398.
+> DOI [10.1257/aer.100.4.1358](https://doi.org/10.1257/aer.100.4.1358) *(re-verified)*
+
+**Result.** Users told the median contribution: those below it raised their monthly ratings by 530
+percent, those above it cut theirs by 62 percent. Together with Schultz et al. (5.2) this is the
+boomerang in a contribution setting.
+
+**What we changed.** No per-member figure, per-100 figure, share or decimal is displayed anywhere
+(SPEC.md §4.3, §8). The tables show counts of active days and ranks; the Monday post shows counts
+and the gap in days; the closing post names the season winner with no figure. The rank carries
+the per-member normalisation silently, and a footer explains why a smaller guild can sit above a
+bigger count. In a guild at the expected base rate every logger is far above the average, which
+is exactly the group the figure would have pulled down.
+
+### 6.5 Self-report inflates, and a bounded unit caps what a lie is worth
+
+> Prince SA, Adamo KB, Hamel ME, Hardt J, Gorber SC, Tremblay M. **A comparison of direct versus
+> self-report measures for assessing physical activity in adults: a systematic review.**
+> *International Journal of Behavioral Nutrition and Physical Activity*, 2008;5:56.
+> DOI [10.1186/1479-5868-5-56](https://doi.org/10.1186/1479-5868-5-56)
+
+**Result.** Across 187 articles, self-report correlates only weakly to moderately with direct
+measurement and runs both above and below it by instrument; social desirability pushes it up.
+
+**What we changed.** Under minutes one member could add 525 credited minutes a week by tapping the
+top tier; under days the most anyone adds is 7, and the only lie left is "I did 15 minutes". The
+rule does not verify anything (NFR-4 remains the real honesty guarantee); it caps the payoff.
+
+### 6.6 Specific group goals, and individual goals framed as the group's
+
+> Kleingeld A, van Mierlo H, Arends L. **The effect of goal setting on group performance: A
+> meta-analysis.** *Journal of Applied Psychology*, 2011;96(6):1289-1304.
+> DOI [10.1037/a0024315](https://doi.org/10.1037/a0024315) *(re-verified)*
+
+**Result.** Group goals raise group performance (d = 0.56 ± 0.19, 49 effect sizes); specific
+difficult goals against nonspecific ones d = 0.80 ± 0.35 (k = 23). Individual goals inside
+interdependent groups: egocentric d = -1.75 ± 0.60 (k = 6), groupcentric d = 1.20 ± 1.03 (k = 4).
+
+**What we changed.** The Monday post sets the guild's own last count as the mark to beat (FR-20),
+a specific goal the guild set itself, omitted at zero and never reported as missed. The
+confirmation names the day as the guild's ("A day for Prodeko.", FR-30), which turns the personal
+target into a groupcentric one under active-day scoring, where the sentence is literally true. The
+k for the individual-goal split is small; the direction is what transfers.
+
+### 6.7 Seed through nominated friends, not the best connected
+
+> Kim DA, Hwong AR, Stafford D, et al. **Social network targeting to maximise population behaviour
+> change: a cluster randomised controlled trial.** *The Lancet*, 2015;386(9989):145-153.
+> DOI [10.1016/S0140-6736(15)60095-2](https://doi.org/10.1016/S0140-6736(15)60095-2)
+
+**Result.** Thirty-two Honduran villages; seeding the nominated friends of random villagers raised
+uptake of a health behaviour by 12.2 percentage points over random seeding (95% CI 6.9 to 17.9);
+seeding the most connected people did no better than random.
+
+**What we changed.** The registration reply asks the newcomer, once, to send the guild's own FR-1
+deep link to someone they know (FR-30). The bot never posts on anyone's behalf, and there is no
+referral count, bonus or leaderboard: the ask is the whole feature. Outside the bot, SPEC.md §9
+records the organiser-side step of asking each guild board for two or three well-liked,
+ordinary-fitness members to log visibly in weeks one and two.
+
+### 6.8 Intergroup competition removes the free riding a collective reward creates
+
+> Erev I, Bornstein G, Galili R. **Constructive intergroup competition as a solution to the free
+> rider problem: A field experiment.** *Journal of Experimental Social Psychology*,
+> 1993;29(6):463-478.
+> DOI [10.1006/jesp.1993.1021](https://doi.org/10.1006/jesp.1993.1021)
+
+**Result.** Orange pickers in groups of four: a collective reward cut output by 30% against
+personal pay; competition between groups removed the loss, more so the more evenly matched the
+groups.
+
+**What we changed.** Nothing new; this is why the competition is between guilds rather than a
+shared campaign, and why per-member normalisation (which keeps nine unequal guilds evenly
+matched) stays inside the ranking even though the figure is never shown.
+
+### 6.9 What was considered from the briefings and not built
+
+A dynamic-norm line on the Monday post ("more of you logged than last week") has A-grade but
+very small support (a 2026 meta-analysis of 79 studies puts it at r = 0.03 to 0.10) and needs a
+branch on direction; scored 17, deferred. Displaying "active days per 100 members" was rejected
+for the 6.4 reason. Sub-squads or a pair rule (the cheapest form with evidence, 6.1) is SPEC.md
+§9 Q9. Tier weighting inside the day count, new-logger bonuses and referral counts each
+reintroduce a volume incentive or a share, and were declined.

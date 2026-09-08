@@ -1,5 +1,5 @@
 import type { Sql } from "postgres";
-import { GUILDS, TIMEZONE } from "../config.ts";
+import { GUILDS, TIMEZONE, WEEKLY_TARGET_MINUTES } from "../config.ts";
 
 export interface UserRow {
   telegramId: number;
@@ -14,6 +14,10 @@ export interface UserRow {
    *  so a caller that wants to know whether a user is paused (rather than off)
    *  needs this alongside reminderHour (phase 3 design 3.3). */
   ignoredStreak: number;
+  /** FR-29. The weekly target the bar, the streak and the celebration use.
+   *  The config figure until the user raises it with /target; the column is
+   *  NULL for "never chose", so the WHO line lives in config.ts only (FR-25). */
+  targetMinutes: number;
 }
 
 interface UserRecord {
@@ -24,6 +28,7 @@ interface UserRecord {
   reminder_hour: number | null;
   reminder_asked: boolean;
   ignored_streak: number;
+  target_minutes: number | null;
 }
 
 /** BIGINT arrives as a string from the driver. Telegram IDs are well inside
@@ -37,11 +42,13 @@ function toUser(record: UserRecord): UserRow {
     reminderHour: record.reminder_hour,
     reminderAsked: record.reminder_asked,
     ignoredStreak: record.ignored_streak,
+    targetMinutes: record.target_minutes ?? WEEKLY_TARGET_MINUTES,
   };
 }
 
 const USER_COLUMNS =
-  "telegram_id::text, guild_slug, first_name, username, reminder_hour, reminder_asked, ignored_streak";
+  "telegram_id::text, guild_slug, first_name, username, reminder_hour, reminder_asked, " +
+  "ignored_streak, target_minutes";
 
 /**
  * Mirrors the config roster into the database at startup (FR-25). Names and
@@ -98,6 +105,16 @@ export async function createUser(
 /** FR-3. Only ever called after the user confirms the move. */
 export async function moveUser(sql: Sql, telegramId: number, guildSlug: string): Promise<void> {
   await sql`UPDATE users SET guild_slug = ${guildSlug} WHERE telegram_id = ${telegramId}`;
+}
+
+/**
+ * FR-29. Stores a choice, never a derived number (SPEC.md section 4.4): the
+ * target changes what the confirmation and /me compare against, and nothing
+ * about what the guild is credited with. decode() has already limited the
+ * value to TARGET_OPTIONS, and the column's CHECK keeps it positive regardless.
+ */
+export async function setTarget(sql: Sql, telegramId: number, minutes: number): Promise<void> {
+  await sql`UPDATE users SET target_minutes = ${minutes} WHERE telegram_id = ${telegramId}`;
 }
 
 /**

@@ -49,7 +49,7 @@ export function dayBefore(date: string): string {
  *
  * - It ends before the competition starts (phase 2 design 4.5). On the first
  *   Monday there is no last week, and the generic path would announce a winner
- *   at 0.0 minutes per member as the first thing every guild sees. Testing the
+ *   with 0 active days as the first thing every guild sees. Testing the
  *   previous week's end rather than its start keeps this correct if
  *   COMPETITION_START ever stops being a Monday.
  * - It starts after the competition ends (phase 2 design 4.8). COMPETITION_END

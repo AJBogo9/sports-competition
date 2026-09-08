@@ -1,11 +1,11 @@
 import type { Bot, Context } from "grammy";
 import type { Sql } from "postgres";
-import { COMPETITION_START, WEEKLY_TARGET_MINUTES, guildBySlug } from "../config.ts";
-import { calendar } from "../db/calendar.ts";
+import { COMPETITION_END, COMPETITION_START, guildBySlug } from "../config.ts";
+import { calendar, weekStartOf } from "../db/calendar.ts";
 import { weekMinutes } from "../db/days.ts";
 import { neighbours, standings, weeklyTotals } from "../db/standings.ts";
 import { findUser } from "../db/users.ts";
-import { competitionRanks, weeklyStreak } from "../domain/scoring.ts";
+import { competitionPhase, standingRanks, weeklyStreak } from "../domain/scoring.ts";
 import { meMessage, standingsMessage } from "./render.ts";
 import { decode } from "./callbacks.ts";
 import { NOT_REGISTERED } from "../strings.ts";
@@ -18,12 +18,18 @@ async function replyMe(ctx: Context, sql: Sql, telegramId: number): Promise<void
     return;
   }
 
-  const { today, weekStart } = await calendar(sql);
+  const { today, weekStart: currentWeek } = await calendar(sql);
+  // Phase 5 design 13.2. After the end, the final week rather than a fresh
+  // empty one that would rank every guild jointly 1st under the frozen pin.
+  const phase = competitionPhase(today);
+  const [weekStart, to] = phase === "after"
+    ? [await weekStartOf(sql, COMPETITION_END), COMPETITION_END]
+    : [currentWeek, today];
   const [minutes, totals, week, around] = await Promise.all([
     weekMinutes(sql, telegramId, weekStart),
     weeklyTotals(sql, telegramId),
-    standings(sql, weekStart, today),
-    neighbours(sql, telegramId, user.guildSlug, weekStart, today),
+    standings(sql, weekStart, to),
+    neighbours(sql, telegramId, user.guildSlug, weekStart, to),
   ]);
 
   // users.guild_slug carries a foreign key onto guilds.slug, and standings()
@@ -39,24 +45,28 @@ async function replyMe(ctx: Context, sql: Sql, telegramId: number): Promise<void
 
   const guild = guildBySlug(user.guildSlug);
 
-  // standings() orders by perMember DESC (with tiebreakers), so week already
-  // arrives sorted best first, which is what competitionRanks requires. Not
-  // re-sorted here. Ties share the best rank (owner decision): every guild
-  // sits jointly 1st before anyone has logged, rather than an arbitrary
-  // 1-to-9 ordering of identical zeros.
-  const ranks = competitionRanks(week.map((row) => row.perMember));
+  // standings() orders by days per member, then minutes per member, so week
+  // already arrives sorted best first, which is what the ranking requires.
+  // Not re-sorted here. Ties share the best rank (owner decision): every
+  // guild sits jointly 1st before anyone has logged, rather than an arbitrary
+  // 1-to-9 ordering of identical zeros. standingRanks breaks ties exactly as
+  // the query orders (phase 5 design 13.1).
+  const ranks = standingRanks(week);
 
   await ctx.reply(
     meMessage({
       weekMinutes: minutes,
-      target: WEEKLY_TARGET_MINUTES,
-      streak: weeklyStreak(totals, weekStart),
+      // FR-29. The reader's own target; the streak is counted against it too,
+      // so raising the target rereads the season's weeks against the new bar.
+      target: user.targetMinutes,
+      streak: weeklyStreak(totals, weekStart, user.targetMinutes),
       guildName: guild?.name ?? user.guildSlug,
       // competitionRanks returns exactly one rank per input value, so ranks
       // and week are always the same length.
       guildRank: ranks[index]!,
       guildCount: week.length,
       neighbours: around,
+      phase,
     }),
     { parse_mode: "HTML" },
   );
@@ -64,12 +74,21 @@ async function replyMe(ctx: Context, sql: Sql, telegramId: number): Promise<void
 
 /** FR-16. The weekly table first, then the season, both per member. */
 async function replyStandings(ctx: Context, sql: Sql): Promise<void> {
-  const { today, weekStart } = await calendar(sql);
+  const { today, weekStart: currentWeek, weekNumber, weekCount } = await calendar(sql);
+  // Phase 5 design 13.2. After the end the final week is shown under a "Final
+  // week" header, so /standings agrees with the frozen pin instead of showing
+  // nine zeros jointly 1st.
+  const phase = competitionPhase(today);
+  const [weekStart, to] = phase === "after"
+    ? [await weekStartOf(sql, COMPETITION_END), COMPETITION_END]
+    : [currentWeek, today];
   const [week, season] = await Promise.all([
-    standings(sql, weekStart, today),
-    standings(sql, COMPETITION_START, today),
+    standings(sql, weekStart, to),
+    standings(sql, COMPETITION_START, to),
   ]);
-  await ctx.reply(standingsMessage({ week, season }), { parse_mode: "HTML" });
+  await ctx.reply(standingsMessage({ week, season, weekNumber, weekCount, phase }), {
+    parse_mode: "HTML",
+  });
 }
 
 export function installReports(bot: Bot, sql: Sql): void {

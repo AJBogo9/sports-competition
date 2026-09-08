@@ -33,13 +33,14 @@ import {
  * product, but carrying the "remind" callback kind rather than "hour" (phase 3
  * design 4.4).
  */
-function remindKeyboard(): InlineKeyboard {
+function remindKeyboard(withOff = true): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   REMINDER_HOURS.forEach((hour, index) => {
     keyboard.text(`${String(hour).padStart(2, "0")}:00`, encode({ kind: "remind", hour }));
     if (index % 2 === 1 && index < REMINDER_HOURS.length - 1) keyboard.row();
   });
-  return keyboard.row().text(BUTTON_REMINDER_STOP, encode({ kind: "remind", hour: null }));
+  // Phase 5 design 13.3. No "Turn them off" under "Reminders are off".
+  return withOff ? keyboard.row().text(BUTTON_REMINDER_STOP, encode({ kind: "remind", hour: null })) : keyboard;
 }
 
 /**
@@ -90,7 +91,10 @@ export function installReminders(bot: Bot, sql: Sql): void {
       : user.ignoredStreak > FOLLOWUP_AFTER_IGNORES
       ? remindStatusPaused(user.reminderHour)
       : remindStatusOn(user.reminderHour);
-    await ctx.reply(status, { parse_mode: "HTML", reply_markup: remindKeyboard() });
+    await ctx.reply(status, {
+      parse_mode: "HTML",
+      reply_markup: remindKeyboard(user.reminderHour !== null),
+    });
   });
 
   bot.on("callback_query:data", async (ctx, next) => {
@@ -123,7 +127,7 @@ export function installReminders(bot: Bot, sql: Sql): void {
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(REMIND_STATUS_OFF, {
           parse_mode: "HTML",
-          reply_markup: remindKeyboard(),
+          reply_markup: remindKeyboard(false),
         });
         return;
       }

@@ -93,18 +93,24 @@ contain today. Nothing here is done until every box is ticked.
       among guilds (FR-14)
 - [ ] `/me` shows you as "you" with at most one person either side, and no
       global list of individuals appears anywhere in the bot (FR-15)
-- [ ] `/standings` shows the weekly table first, then the season, both as
-      minutes per member (FR-16)
-- [ ] The command menu in a private chat offers `/log`, `/me` and `/standings`
+- [ ] `/standings` shows the weekly table first, then the season, both as whole-number counts of
+      active days with no decimal anywhere (FR-16, phase 5 design 12.2), the footer says the
+      ranking is per member of the whole roster, and the weekly header reads **`Week N of M`**
+      with the right N for today and M for the configured window (phase 5 design 11.1). Never
+      `Week 0 of M`. Log one `15 to 30` day and one `60+` day on two accounts in the same guild
+      and confirm the guild's count rises by exactly 2; log `Not today` and confirm it does not
+      move
+- [ ] The command menu in a private chat offers `/log`, `/me`, `/standings`, `/remind` and
+      `/target`
 - [ ] Send `/me` in a group chat that has the bot in it, and confirm the bot
       does not reply. This one protects other people's data, not just yours
 
 ## The numbers
 
-- [ ] Hand-calculate one guild's weekly minutes from what the two test accounts
-      logged, divide by that guild's member count in `src/config.ts`, and
-      confirm `/standings` matches. This is SPEC.md §10's "done when" for
-      Phase 1
+- [ ] Count the non-rest days the two test accounts logged this week in one guild and confirm
+      `/standings` shows exactly that count on the guild's row; then confirm a smaller guild with
+      the same count sits above a larger one, which is the per-member ranking working. This is
+      SPEC.md §10's "done when" for Phase 1, restated for active days (SPEC.md §4.3)
 - [ ] A guild with nobody registered still appears in the table, at zero
 
 ## The group chat (Phase 2)
@@ -193,9 +199,21 @@ move its ledger back one week by hand:
 UPDATE chats SET last_monday_week = last_monday_week - INTERVAL '7 days';
 ```
 
-- [ ] Within a minute the bot posts a new message (not an edit) that notifies, names last week's
-      winning guild with its minutes per member, gives this chat's own guild its placement and
-      participation percentage, and says the week starts at zero (FR-20)
+- [ ] Within a minute the bot posts a new message (not an edit) that notifies, opens
+      **`Week N of M. Everyone back to zero.`** (phase 5 design 11.1), names last week's
+      winning guild with no figure, gives this chat's own guild its placement, its count of
+      active days and how many of its members logged at least once, as counts with no percent
+      sign and no decimal anywhere (phase 5 design 5.4 and 12.2), and says the week starts at
+      zero (FR-20)
+- [ ] The same post names exactly one adjacent guild and a day count, `FK, one place up, was
+      26 active days away.` (phase 5 design 11.2, 12.2). Check the arithmetic once by hand: the
+      gap between the two guilds' active days per member times this guild's roster, rounded up.
+      In a chat whose guild won the week, the sentence names the guild one place **down**. Ask
+      two people from a low-placed guild how it reads; if it reads as pressure, the sentence is
+      one edit in `render.ts`
+- [ ] The same post ends `Nothing carries over. This week is open. The mark to beat: N active
+      days.` where N is this guild's own count from the sentence above (phase 5 design 12.3). In
+      a guild with 0 active days last week there is no mark sentence
 - [ ] Run the same `UPDATE` again and confirm exactly one further post appears, not two. Then
       restart the bot mid-week and confirm no post appears at all, which is the exactly-once
       ledger doing its job
@@ -238,9 +256,16 @@ obvious at a glance.
       against. Note its numbers
 - [ ] Within a minute a Monday post appears, naming a winner and this chat's own placement in the
       same shape an ordinary Monday post uses
-- [ ] That post opens **"That's the competition."** and closes **"Thanks for moving."** It must
-      not contain "New week", "back to zero", "Nothing carries over" or "This week is open": the
-      competition is over and there is no week for anyone to act on
+- [ ] That post opens **"That's the competition."** followed on the same line by **"<guild> wins
+      the season, with <this guild> Nth of 9."** (phase 5 design 10.1, 12.2: no figure), then
+      the ordinary "Last week ... took it" sentence, and closes **"Thanks for moving. The standings
+      stop here. 150 minutes a week is yours to keep."** (phase 5 design 5.5). It must not contain
+      "New week", "back to zero", "Nothing carries over" or "This week is open": the competition is
+      over and there is no week for anyone to act on
+- [ ] The season winner and placing in that post match the frozen pinned message's **Season** table
+      exactly; the "Last week" sentence matches its **This week** table. If they disagree, the two
+      ranges have drifted (ticker.ts fetches the season over `COMPETITION_START` to the last
+      week's end)
 - [ ] **The pinned message is byte-identical to the screenshot**, immediately and again after
       waiting a further 20 minutes so at least one pin-refresh interval has certainly elapsed.
       This is the step the whole section exists for. If the pin has changed to a table of zeroes,
@@ -337,3 +362,113 @@ still no seed command, debug route or simulation anywhere in the build.
 - [ ] Confirm the blocked user's minutes never left the standings at any point
       in the above. This is the invariant with the largest blast radius in the
       project: blocking gates messaging and never scoring
+
+## The fun pass (Phase 5)
+
+`checkin.ts` is untested by design, and the celebration in it relies on a Telegram behaviour that
+is documented nowhere: a bot reacting to a message it sent itself in a private chat. This section
+is the only place that can be proven. Keep `docker compose logs -f bot` open: the failure case is a
+log line, not a message.
+
+### The celebration (FR-28)
+
+- [ ] On a week below 150, log `60+`, then `30 to 60`, then `30 to 60` on three days (75, 120,
+      165: the third log crosses). Only the third confirmation may carry a 🎉 reaction under it,
+      and the reaction should play its big animation as it lands. Record whether the animation
+      played or only the static reaction appeared: the design accepts either but wants to know
+      which (phase 5 design 5.1)
+- [ ] Log once more on the same week, now above 150. **No** reaction on that confirmation: only the
+      crossing is celebrated, never a tier, a day or a rank
+- [ ] Tap Undo on the crossing confirmation. The reaction must disappear along with the log
+- [ ] Cross the target on an account whose previous week genuinely reached 150. Backdating stops
+      at yesterday (FR-10), so a prior week cannot be manufactured from a Monday; this step is
+      checkable only in the second week of a smoke run. The reaction is 🔥 rather than 🎉, and the
+      tail reads `Target hit. 2 weeks in a row.`
+- [ ] Watch the log for `reaction for <id> failed` on crossings and `reaction clear for <id>
+      failed` on every Undo (the clear runs on every applied undo, not only on crossings). If either
+      appears every time, Telegram refuses a bot's reaction on its own message, the celebration is
+      silently absent, and the effect-message fallback in phase 5 design 5.1 is the next step.
+      Record the error description verbatim
+
+### The copy
+
+- [ ] Log `15 to 30`, `30 to 60` and `60+` on three days and confirm the heads read `22 min.
+      Counts.`, `45 min. Good.` and `75 min. Big one.` A rest day still reads `Noted. Rest days
+      don't break anything.` (phase 5 design 5.3)
+- [ ] Ask both testers whether the three heads read warm rather than mocking. Copy lives in
+      `src/strings.ts` and is one edit if not
+- [ ] Reach 150 on a first target week and confirm the tail reads `Target hit.` with no week count.
+      One week is not yet a streak (phase 5 design 5.2)
+- [ ] Below 150, confirm no confirmation mentions weeks in a row, whatever `/me`'s streak line says
+- [ ] Trigger the Monday post with the ledger `UPDATE` above and confirm it reads `with N of you
+      logging at least once` and contains no percent sign (phase 5 design 5.4)
+- [ ] Trigger the closing post per the closing-post setup above and confirm its last line is
+      `Thanks for moving. The standings stop here. 150 minutes a week is yours to keep.` (phase 5
+      design 5.5) and its first line names the season winner (phase 5 design 10.1)
+- [ ] Register a fresh account and confirm the welcome reads `It's easy to forget by week three
+      unless something asks, so: should I?` and never "Most people forget"; then confirm the reply
+      to either reminder answer contains `is ranked on active days per member`, `everyone on the
+      roster counts`, and `Send them the link: https://t.me/<bot>?start=<slug>` with this bot's
+      real username and the account's guild slug; tap the link from a second account and confirm
+      it registers into that guild (phase 5 design 10.2, 12.2, 12.4)
+- [ ] Every confirmation for `15 to 30`, `30 to 60` or `60+` carries `A day for <guild>.` on its
+      head line, and a `Not today` confirmation does not (FR-30, phase 5 design 12.3)
+- [ ] With that fresh account, before it or anyone alphabetically adjacent in its guild has logged
+      this week, `/me` shows no **Around you** block; after one neighbour logs, it does (phase 5
+      design 10.2). On a Monday morning in a quiet guild, expect the block to be absent for everyone
+- [ ] Send `/target` in a private chat: it shows your current target (150 for a fresh account),
+      the WHO sentence, and four buttons `150 min` `225 min` / `300 min` `450 min`. Tap `300 min`:
+      the toast says `Target set to 300`, the message edits to `Target set to 300 minutes a week`
+      and states that a day counts as one active day for the guild whatever its length (phase 5
+      design 11.3, 12)
+- [ ] Log a `60+` day: the confirmation's bar now reads `75 / 300 min` and "225 minutes to go";
+      `/me` reads against 300 too; `/standings` is byte-identical to before the change (FR-29).
+      A week already at 165 minutes no longer says "Target hit" and its streak line disappears,
+      because the streak is counted against the new target
+- [ ] Send `/target` in a group chat and confirm no reply
+
+## Finish (FR-31, phase 5 design 13)
+
+The small things two critics found on 2026-09-08. Each is a first- or second-contact moment.
+
+- [ ] Open the bot's profile before tapping Start: the line under the name reads `Aalto guild
+      activity competition. One tap a day.` and the "What can this bot do?" panel names active
+      days per member and the visibility of your name and activity (set at boot, no BotFather)
+- [ ] Type `hello` in the private chat, then `/nonsense`: both get `I only understand taps and
+      commands. /log to check in, /me for your week, /standings for the guilds.` Type the same in
+      a group with the bot: no reply
+- [ ] With `COMPETITION_START` set to a future date, `/log` replies `The competition starts on
+      <day month year>. Nothing to log until then; I'll be here.` with no buttons; with the end in
+      the past, `The competition ended on <date>. Thanks for moving.`; a registration in that
+      state ends on that sentence rather than on a refused tap
+- [ ] Send `/start` as a registered user: `You're already counted for <guild>.` followed by the
+      rules paragraph (target, tap values, the scoring rule, the guild link, the privacy line),
+      and the reminder question only if it was never answered, with the hour buttons under it
+- [ ] Log `30 to 60 min`, then send `/log` again: the prompt reads `Moved today?` and under it
+      `Logged already: 30 to 60 min. A tap replaces it.`; tap `60+ min` and confirm the
+      confirmation shows 75, not 120, and that Undo says `Put back`
+- [ ] Tap `Log yesterday instead`, then `Today instead`: back to today's prompt
+- [ ] In a guild with exactly one active day last week, the Monday post reads `with 1 active day`
+      and `The mark to beat: 1 active day.`; in a week where two guilds tie on days per member
+      and minutes per member, it reads `Last week X and Y shared it.`; in a week nobody logged,
+      `Last week nobody logged a day.` and no mark
+- [ ] Rank check: log one `60+` day in Prodeko and one `15 to 30` day in AS (same roster size)
+      in the same week; `/standings` ranks Prodeko 1 and AS 2, never joint 1st, and the Monday
+      post to AS reads `Prodeko took it` with `AS finished 2nd` and `Prodeko finished level with
+      you on days.`
+- [ ] Trigger a failure (stop the database for a minute, tap a tier): the toast reads `Something
+      went wrong on my side. Try again in a minute.` and the log carries the update id
+- [ ] `/remind` while reminders are off shows the four hours and no `Turn them off` button; the
+      five-ignore follow-up reads `Want them back?`
+- [ ] `/target` marks the current option with a check mark; its text offers the way back to 150;
+      the toast reads `Target set to 300 min`; the reply never mentions a celebration
+- [ ] Bind a chat and read the reply: it says standings appear within 15 minutes and asks for pin
+      permission up front
+- [ ] After `COMPETITION_END`, `/standings` and `/me` show the final week under **Final week**,
+      matching the frozen pin; before `COMPETITION_START`, `/standings` reads **This week** with
+      zeros, never `Week 0 of N`
+- [ ] A neighbour with a 20-character first name is cut to ten characters in `Around you` and the
+      minutes column stays aligned
+- [ ] `docker compose logs bot` on a normal day shows the window at boot, `standings posted in
+      chat <id> and pinned` once per chat, `monday post sent to chat <id> for week <date>` on
+      Monday, and `SIGTERM: stopping` on `docker compose stop`

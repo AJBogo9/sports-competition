@@ -1,7 +1,7 @@
 # Sports Competition
 
 A minimal Telegram bot for running a time-boxed physical activity competition between Aalto
-University student guilds. One tap per day, guilds ranked on minutes per member.
+University student guilds. One tap per day, guilds ranked on active days per member.
 
 **Status:** Phases 1 to 3 are built: registration, `/log`, `/me`, `/standings`, the group chat
 (binding, pinned standings, the Monday post), and reminders with their five-ignore auto-stop and
@@ -9,7 +9,13 @@ University student guilds. One tap per day, guilds ranked on minutes per member.
 having and the decoder hardening against trailing junk, but Phase 4 itself is not complete: it
 reduces to NFR-3, a nightly backup, and NFR-3 is met by deploying this bot's database onto
 Tietokilta's infrastructure, which has not happened yet ([SPEC.md](SPEC.md) NFR-3). English, and
-reminders are a per-user choice. FR-11's optional tag is cut ([SPEC.md](SPEC.md) §9 Q5).
+reminders are a per-user choice. FR-11's optional tag is cut ([SPEC.md](SPEC.md) §9 Q5). Phase 5,
+the fun pass, is built and unsmoked like the rest: a celebration when a week crosses the target,
+the streak named on that confirmation, heads that scale with the tier, a Monday post that counts
+the people who logged rather than printing a share, and since 2026-09-08 the competition clock
+("Week 5 of 8"), the local race in the Monday post, and a self-chosen weekly target via `/target`
+([the Phase 5 design](docs/superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) holds the
+research and the admission scale behind it).
 
 Three things gate real use. Nothing is deployed yet, so there is no off-machine backup of anything
 (see Deploy below). No phase's smoke run has been done ([docs/SMOKE.md](docs/SMOKE.md)). And
@@ -21,7 +27,7 @@ competition dates are still a placeholder in `src/config.ts` ([SPEC.md](SPEC.md)
 |---|---|
 | **[SPEC.md](SPEC.md)** | The requirements. Numbered, testable, with a build order. This is the source of truth |
 | [docs/evidence.md](docs/evidence.md) | Primary citations for every design decision, with exact figures and the claims that did not survive checking |
-| [prototype/bot-flows.html](prototype/bot-flows.html) | Clickable mockup of every screen. Open it in a browser |
+| `prototype/bot-flows.html` (git history only) | Clickable mockup of every screen, deleted in commit 77507ee. `git show 77507ee^:prototype/bot-flows.html > /tmp/bot-flows.html` and open that in a browser |
 
 ## Run it locally
 
@@ -114,8 +120,24 @@ database.
 - **Bot only, long polling.** No web app, no domain, no TLS, no inbound ports. It runs on a home
   server or a small VPS.
 
-Roughly 1,950 lines of logic, two containers, one machine. See [SPEC.md](SPEC.md) NFR-6 for the
-2,000-line ceiling and the note recording why its original 1,300 estimate was low.
+Roughly 2,300 lines of logic, two containers, one machine. See [SPEC.md](SPEC.md) NFR-6 for the
+size trend (the 2,000-line ceiling was removed on 2026-09-08) and the note recording why its
+original 1,300 estimate was low.
+
+## Launch notes
+
+Things the bot cannot do for you, in the order they come up:
+
+- **Verify the nine member counts** in `src/config.ts` and set the real competition dates
+  (SPEC.md §9 Q1). The bot prints the window at every boot and warns when today is outside it.
+- **Post each guild's own link** (`https://t.me/<bot>?start=<slug>`) in that guild's chat, and add
+  the bot to the chat with permission to pin. The bot sets its own profile texts and command menu.
+- **Ask each guild board for two or three well-liked, ordinary-fitness members** to log and say so
+  in the guild chat in weeks one and two. Seeding through nominated friends is the one recruitment
+  method with trial evidence behind it ([docs/evidence.md](docs/evidence.md) §6.7); seeding through
+  the fittest or the best connected is not.
+- **Do not post totals, averages or shares yourself.** The bot shows counts and ranks only, on
+  purpose (SPEC.md §4.3, §8).
 
 ## Relationship to the earlier bot
 

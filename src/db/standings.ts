@@ -5,8 +5,18 @@ import { tierMinutes } from "./tiers.ts";
 export interface GuildStanding {
   slug: string;
   name: string;
+  /** SPEC.md section 4.3 (2026-09-08). Days logged as anything but rest, at
+   *  most one per member per day. This is what the tables display. */
+  activeDays: number;
+  /** Summed tier minutes; the tiebreaker, never displayed. */
   minutes: number;
+  /** Active days per member of the roster: the ranking unit. Never displayed
+   *  (phase 5 design 12.2): an average over the roster is a low descriptive
+   *  norm broadcast to everyone above it. */
   perMember: number;
+  /** The roster size the average is over (phase 5 design 11.2: the local
+   *  race converts a per-member gap into days over the reader's roster). */
+  memberCount: number;
 }
 
 export interface Neighbour {
@@ -16,9 +26,10 @@ export interface Neighbour {
 }
 
 /**
- * FR-16 and SPEC.md section 4.3. Minutes per member across the guild's entire
- * roster, including everyone who never logs anything, which is what makes
- * activating quiet members the winning strategy.
+ * FR-16 and SPEC.md section 4.3. Active days per member across the guild's
+ * entire roster, including everyone who never logs anything, which is what
+ * makes activating quiet members the winning strategy. Minutes are still
+ * summed, as the tiebreaker.
  *
  * Two casts matter. `::numeric` before the division, because Postgres integer
  * division truncates 142 / 650 to 0, which is the bug in the query printed in
@@ -50,6 +61,15 @@ export interface Neighbour {
  * key. Without this tiebreaker, Postgres could return guilds in arbitrary order
  * when two have identical per-member scores, leading to non-deterministic results
  * across successive calls.
+ *
+ * SPEC.md section 4.3 as amended 2026-09-08 (phase 5 design 12.1): the ranking
+ * unit is active days per member, a day being any record that is not rest,
+ * and minutes per member breaks ties. A day counts once whatever its tier, so
+ * nobody can carry a guild and the marginal newcomer's first session is worth
+ * exactly what the marginal athlete's seventh is; the trials that made
+ * competition work scored visits and goal-days, not minutes
+ * (docs/evidence.md section 6). COUNT(d.date) counts only joined rows, so a
+ * guild with nobody registered is 0 rather than NULL.
  */
 export async function standings(
   sql: Sql,
@@ -60,15 +80,21 @@ export async function standings(
     WITH tier_minutes(tier, minutes) AS (${tierMinutes(sql)})
     SELECT g.slug,
            g.name,
+           COUNT(d.date) FILTER (WHERE d.tier <> 'rest')::int AS "activeDays",
            COALESCE(SUM(t.minutes), 0)::int AS minutes,
-           (COALESCE(SUM(t.minutes), 0)::numeric / g.member_count)::float8 AS "perMember"
+           (COUNT(d.date) FILTER (WHERE d.tier <> 'rest')::numeric / g.member_count)::float8
+             AS "perMember",
+           g.member_count AS "memberCount"
     FROM guilds g
     LEFT JOIN users u ON u.guild_slug = g.slug
     LEFT JOIN days d ON d.telegram_id = u.telegram_id
                     AND d.date BETWEEN ${from}::date AND ${to}::date
     LEFT JOIN tier_minutes t ON t.tier = d.tier
     GROUP BY g.slug, g.name, g.member_count
-    ORDER BY "perMember" DESC, g.name ASC, g.slug ASC
+    ORDER BY "perMember" DESC,
+             (COALESCE(SUM(t.minutes), 0)::numeric / g.member_count) DESC,
+             g.name ASC,
+             g.slug ASC
   `;
 }
 
@@ -151,30 +177,24 @@ export async function weeklyTotals(sql: Sql, telegramId: number): Promise<WeekTo
 }
 
 /**
- * FR-20. The share of a guild's roster that logged at least once in the range,
- * as a fraction between 0 and 1. The renderer turns it into a percentage.
+ * FR-20. How many of a guild's members logged at least once in the range.
+ *
+ * A count of people, deliberately not the share of the roster it used to be
+ * (phase 5 design 5.4). At the signup-to-participation base rate SPEC.md
+ * section 1 expects, a share is a low descriptive norm sent to a whole guild
+ * chat every Monday, and a broadcast low norm pulls the people above it down
+ * toward it (docs/evidence.md 5.2). A count names the people who did it
+ * without stating that most did not, and it is still the number the reader
+ * can change this week (phase 2 design 3.3).
  *
  * A rest day counts (phase 2 design 4.3): FR-8 makes rest an explicit record rather
  * than an absence, and this number measures engagement rather than minutes.
  * That is why it joins days without joining tier_minutes at all.
  *
- * The denominator is the configured member_count, the same roster every other
- * per-member number in the competition divides by, so the two cannot tell
- * different stories about the same guild.
- *
- * If a guild's registrations ever exceed its configured member_count, this
- * share exceeds 1 and renders as over 100% of the guild logging. Not
- * reachable at today's 350 to 700 rosters, but CLAUDE.md records member
- * counts as unverified, so this is left unclamped rather than hiding a real
- * config error.
- *
- * ::numeric before the division and ::float8 after, because Postgres integer
- * division would truncate 2 / 650 to 0.
- *
  * No `NOT u.blocked` here either, for the reason given on `standings()` above.
  * On this query the clause was the most visible of the three: it would have
- * dropped a guild's published participation share retroactively, in the
- * Monday post, the moment one of its members blocked the bot.
+ * dropped a guild's published participation retroactively, in the Monday
+ * post, the moment one of its members blocked the bot.
  */
 export async function participation(
   sql: Sql,
@@ -182,18 +202,18 @@ export async function participation(
   from: string,
   to: string,
 ): Promise<number> {
-  const [row] = await sql<{ share: number }[]>`
-    SELECT (COUNT(DISTINCT d.telegram_id)::numeric / g.member_count)::float8 AS share
+  const [row] = await sql<{ loggers: number }[]>`
+    SELECT COUNT(DISTINCT d.telegram_id)::int AS loggers
     FROM guilds g
     LEFT JOIN users u ON u.guild_slug = g.slug
     LEFT JOIN days d ON d.telegram_id = u.telegram_id
                     AND d.date BETWEEN ${from}::date AND ${to}::date
     WHERE g.slug = ${guildSlug}
-    GROUP BY g.slug, g.member_count
+    GROUP BY g.slug
   `;
   // guilds is synced from config on every boot, so a miss means the caller
   // passed a slug that is not in config at all. Surfacing it is better than
-  // returning 0, which would render as a plausible but false "0% logged".
+  // returning 0, which would render as a plausible but false "0 of you".
   if (!row) throw new Error(`guild "${guildSlug}" not found`);
-  return row.share;
+  return row.loggers;
 }

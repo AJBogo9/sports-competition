@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import postgres, { type Sql } from "postgres";
 import { migrate } from "../../src/db/migrate.ts";
-import { createUser, syncGuilds } from "../../src/db/users.ts";
+import { createUser, findUser, setTarget, syncGuilds } from "../../src/db/users.ts";
 import { logDay, weekMinutes } from "../../src/db/days.ts";
 import {
   neighbours,
@@ -127,6 +127,9 @@ async function seedFixture(sql: Sql): Promise<void> {
   await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
   await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Bob" });
   await createUser(sql, { telegramId: 3, guildSlug: "tik", firstName: "Carol" });
+  // FR-29. A chosen target, so a dump that lost migration 004's column would
+  // not round-trip clean (phase 5 design 13.1).
+  await setTarget(sql, 1, 300);
 
   // Alice: 45 + 75 + 45 = 165, over the 150 target, so weeklyStreak returns 1.
   await logDay(sql, 1, "2026-07-27", "medium"); // first day of the window
@@ -150,6 +153,7 @@ interface Surface {
   aliceWeekMinutes: number;
   aliceStreak: number;
   prodekoParticipation: number;
+  aliceTarget: number;
 }
 
 /** Every published number, recomputed from whatever rows are present. */
@@ -161,6 +165,7 @@ async function captureSurface(sql: Sql): Promise<Surface> {
     aliceWeekMinutes: await weekMinutes(sql, 1, WEEK_FROM),
     aliceStreak: weeklyStreak(await weeklyTotals(sql, 1), WEEK_FROM),
     prodekoParticipation: await participation(sql, "prodeko", WEEK_FROM, WEEK_TO),
+    aliceTarget: (await findUser(sql, 1))?.targetMinutes ?? -1,
   };
 }
 

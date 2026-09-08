@@ -146,7 +146,9 @@ per-capita denominator.
 
 ### 5.1 Registration (FR-1 to FR-4)
 
-`/start prodeko` on a fresh user writes the row and replies in one message:
+`/start prodeko` on a fresh user writes the row and replies in one message (the second sentence
+was reworded by the Phase 5 design §10.2 to "It's easy to forget by week three": the original was
+a descriptive norm about lapsing, and the reply that follows now also states how guilds are scored):
 
 ```
 Hi Andreas. You're in, for Prodeko.

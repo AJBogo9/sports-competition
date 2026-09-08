@@ -1,10 +1,11 @@
 # Guild Activity Competition: Specification
 
-**Last updated:** 2026-07-30
-**Status:** Requirements agreed. Not started. Language and reminder behaviour decided; competition
-dates still under discussion (section 9, Q1) and are the only thing blocking a start.
-**Companion documents:** [docs/evidence.md](docs/evidence.md) for citations,
-[prototype/bot-flows.html](prototype/bot-flows.html) for the interaction mockup.
+**Last updated:** 2026-09-08
+**Status:** Phases 1 to 5 built, Phase 5 through its critic pass and the post-ceiling build of 2026-09-08; no smoke run done; nothing deployed. Language and reminder
+behaviour decided; competition dates still under discussion (section 9, Q1).
+**Companion documents:** [docs/evidence.md](docs/evidence.md) for citations. The interaction
+mockup, `prototype/bot-flows.html`, was deleted in commit 77507ee and survives only in git history
+(`git show 77507ee^:prototype/bot-flows.html`).
 
 ---
 
@@ -189,16 +190,45 @@ The top tier is **capped at 75 minutes**. Health benefit plateaus beyond about 3
 competition into a training log. The cap also bounds dishonesty: an inflating user gains at most
 about three times an honest one.
 
+*Since 2026-09-08* the minutes feed only the personal target and the tiebreaker; the guild is
+credited with the day, not the minutes (4.3). The tiers stay because the personal bar, the streak
+and the celebration run on them, and because "did I move, and roughly how much" is still the
+honest resolution of a one-tap report.
+
 ### 4.2 Personal target
 
 **150 minutes per week**, taken directly from the WHO guideline for adults 18 to 64. Achievable in
 four sessions. Not comparative, so it is a win available to everyone regardless of rank.
 
+*Amended 2026-09-08 (FR-29).* The guideline is where everyone starts, and a member MAY raise their
+own target with `/target` to one of the configured options (150, 225, 300 or 450 minutes). The
+target changes what the progress bar, the streak and the celebration compare against, and nothing
+about the guild's score: the daily cap in 4.1 and the per-member average in 4.3 are untouched.
+Nothing below the guideline is offered until Q7 in section 9 is decided.
+
 ### 4.3 Guild ranking
 
-Minutes per member across the guild's **entire roster**, including everyone who never logs
-anything. This is what makes activating quiet members the winning strategy rather than recruiting
-the already-active.
+**Active days per member** across the guild's **entire roster**, including everyone who never logs
+anything. An active day is a day logged as anything but rest; a member contributes at most one per
+day, whatever the duration. Ties break on minutes per member, then guild name.
+
+*Amended 2026-09-08*, from minutes per member. Minutes rewarded breadth and depth together, and
+depth was cheaper for a guild to buy: under the 75-minute cap a dozen athletes logging daily
+outscored sixty newcomers doing three sessions a week, and the athletes would have trained anyway.
+The behaviour that changes belongs to the previous non-exerciser (docs/evidence.md §5.6), the
+randomised trials that made team competition work scored goal-days and visits rather than minutes
+(§6.3), and a bounded unit caps both the size and the value of an inflated report (§6.5). Under
+active days nobody can carry a guild; the only way to win is more people logging more days, which
+turns the most competitive members into recruiters. It does not make the newcomer "worth as much
+as the athlete" motivationally at this group size (§6.1); what it does is bound each contribution.
+
+**What is displayed is never the per-member figure.** The tables show each guild's count of
+active days and the rank; the Monday post shows the count and the gap to the adjacent guild in
+days. An average over the roster ("1.4 active days per member") is a low descriptive norm
+broadcast to everyone above it, and the people above it cut their contribution when shown such a
+number (§6.4). The rank carries the normalisation; a footer explains why a smaller guild can sit
+above a bigger count. This is what makes activating quiet members the winning strategy rather
+than recruiting the already-active.
 
 Two tables, always published together:
 
@@ -248,7 +278,11 @@ off. There MUST be no silent default in either direction.
 
 Since this single question decides whether the feature reaches anyone, it MUST present a
 recommended option rather than read as a step to be skipped past. Phrase it as a real choice
-between two named outcomes, not as "set a reminder time (optional)".
+between two named outcomes, not as "set a reminder time (optional)". The recommendation MUST NOT
+lean on a descriptive norm about lapsing ("most people forget"): a message that says most people do
+the undesirable thing also says most people do it ([docs/evidence.md](docs/evidence.md) §5.2).
+Whichever way the user answers, the reply states how guilds are scored, because nothing else in
+the bot does (Phase 5 design §10.2).
 
 ### Reporting
 
@@ -286,6 +320,12 @@ against the 150 minute target, including a visual progress indicator.
 *Accept:* after logging 45 minutes on a week already holding 67, the message reads 112 / 150 with a
 bar filled to roughly three quarters.
 
+*Added 2026-09-07 (Phase 5):* once the target is met, the confirmation SHOULD name the weekly streak
+(FR-13) when it is two weeks or longer, and MUST NOT mention a streak that has ended or a week that
+is not yet at the target. The line above the bar SHOULD scale with the tier that was logged.
+*Accept:* a log that reaches 150 with two prior target weeks reads "3 weeks in a row"; a log that
+reaches 67 says nothing about weeks.
+
 **FR-13. Weekly streak.** The bot MUST track consecutive weeks in which the user met the target.
 Streaks MUST be counted in weeks, never days.
 *Accept:* a user who hits 150 minutes in three consecutive weeks shows a streak of 3, regardless of
@@ -300,9 +340,22 @@ individuals. It MAY show the user's immediate neighbours within their guild.
 
 ### The competition
 
-**FR-16. Guild standings.** `/standings` MUST show minutes per member for every active guild, for
-the current week and for the season, with the weekly table first.
+**FR-16. Guild standings.** `/standings` MUST show every active guild's rank and count of active
+days (section 4.3), for the current week and for the season, with the weekly table first.
 *Accept:* both tables render in one message and the denominators are full roster sizes.
+
+*Added 2026-09-08 (Phase 5, design §11.1):* while the competition is running, the weekly table's
+header MUST be the competition clock, "Week 5 of 8", computed in SQL from the configured window.
+Outside the window the header reverts to "This week"; "Week 0 of 8" or "Week 9 of 8" is a defect.
+The pinned message (FR-19) renders through the same function, so it carries the same clock.
+*Accept:* mid-competition, `/standings` and the pin open "Week N of M · active days".
+
+*Amended 2026-09-08 (design §12.2):* the tables MUST show each guild's count of active days as a
+whole number, ranked per member of the roster (section 4.3), and MUST NOT show the per-member
+figure, a share, or any decimal. The footer MUST say the ranking is per member of the whole
+roster.
+*Accept:* the message contains no decimal number and no "per member" figure, and a smaller guild
+with fewer days can sit above a larger one.
 
 **FR-17. Command scopes.** Commands MUST be scoped so that reporting commands appear only in
 private chats and standings commands appear in group chats.
@@ -324,6 +377,33 @@ update.
 morning, containing the previous week's result and framed as a fresh start.
 *Accept:* the message is new (it notifies), it names last week's winner, and it states that the new
 week starts at zero.
+
+*Added 2026-09-07 (Phase 5):* the participation figure MUST be a count of the guild's members who
+logged at least once, never a share of the roster. At the base rate section 1 expects, a share is a
+low descriptive norm broadcast to a whole guild every Monday, and a broadcast low norm pulls the
+people above it down toward it ([docs/evidence.md](docs/evidence.md) §5.2). The closing post SHOULD
+hand the weekly target back to the reader as theirs to keep, and MUST NOT ask for anything.
+*Accept:* the post reads "with 52 of you logging at least once" and contains no percent sign.
+
+*Added 2026-09-07 (Phase 5, critic pass):* the closing post MUST name the season winner and the
+reader's guild's season rank, beside the last week's result. It is the one notifying message the
+competition ends on, and the pinned table is silent (FR-19); a competition whose result is never
+announced is a defect. The Phase 2 design had rejected this on cost, and the Phase 5 design §10.1
+overturns it.
+*Accept:* the closing post contains "wins the season" and the reader's guild's season placing.
+
+*Added 2026-09-08 (Phase 5, design §11.1 and §11.2, amended the same day by §12):* the ordinary
+post MUST open with the competition clock ("Week 5 of 8. Everyone back to zero.") and MUST name
+the local race: the guild one place above the reader's (one place below, for the winner) and the
+gap to it in active days over the reader's own roster ("FK, one place up, was 26 active days
+away."). A tie reads "level with you". The post MUST state the reader's guild's active days as a
+count and MUST NOT state any per-member figure, for the winner or for the reader. It MUST set last
+week's own count as the mark to beat ("The mark to beat: 148 active days."), omitted only when
+that count is zero; the closing post carries no mark. Every sentence has one shape for every rank,
+so the skeleton-equality tests still hold.
+*Accept:* the post names exactly one adjacent guild and a day count, the winner's post names the
+guild below it, the post contains no decimal, and a guild with 148 days last week reads "The mark
+to beat: 148 active days."
 
 ### Reminders
 
@@ -371,6 +451,52 @@ language setting, an internationalisation framework, or a translation workflow. 
 used as they are written in configuration.
 *Accept:* every string a user can see is English, and adding a second language would be a new
 feature rather than filling in an existing table.
+
+### Feedback that lands (Phase 5, added 2026-09-07)
+
+**FR-28. Celebration at the target.** The log that takes a week from below the target to at or
+above it MUST be marked with a visible, non-tangible celebration on its own confirmation, and the
+bot MUST NOT celebrate anything else: no tier, no day, no rank. Undoing that log MUST remove the
+mark.
+*Accept:* logging 45 minutes onto a week at 112 produces the mark; logging 45 onto a week already
+at 150 does not; undoing the crossing log removes it.
+
+*Rationale:* the personal target is the attainable standard that keeps members of a losing guild
+motivated, and it needs positive feedback for meeting it to do that job
+([docs/evidence.md](docs/evidence.md) §5.1). A symbolic mark is the form of reward the same
+evidence says does not undermine intrinsic motivation, where a prize would.
+
+---
+
+**FR-29. Self-chosen weekly target.** *Added 2026-09-08 (Phase 5, design §11.3).* A registered
+member MUST be able to raise their weekly target with `/target` to one of the configured options,
+and the bar, the streak and the FR-28 celebration MUST use that target. The choice MUST NOT change
+the guild's score in any way. The reply MUST state that the guild counts a day as one active day
+whatever its length, because the member raising the target is the one who trains most. The command
+MUST be in the private-chat menu, and the registration reply MUST point at it.
+
+**FR-30. The day is named as the guild's, and the newcomer is asked to bring one person.** *Added
+2026-09-08 (design §12.3, §12.4).* A confirmation for any tier but rest MUST name the reader's
+guild as what the day counted for ("A day for Prodeko."), as a fact and not as praise. The
+registration reply MUST state the scoring rule as a group interest in active days and MUST ask the
+reader, once, to send the guild's own FR-1 deep link to someone they know. The bot MUST NOT post
+on anyone's behalf.
+*Accept:* a medium log reads "45 min. Good. A day for Prodeko."; a rest log carries no guild
+line; the registration reply contains `https://t.me/<bot>?start=<slug>` and "Send them the link".
+
+**FR-31. No dead ends.** *Added 2026-09-08 (design §13).* The bot MUST set its own profile texts
+(the short description and the "What can this bot do?" panel) at boot. A typed message or an
+unknown command in a private chat MUST get a reply naming the commands. A failed update MUST
+answer the person as well as the log. Before the start and after the end, `/log` MUST say when
+the competition starts or ended, in words, instead of offering buttons that refuse. After the end,
+`/standings` and `/me` MUST show the final week under a "Final week" label rather than a fresh
+empty week. A `/log` prompt for a day already logged MUST say what is logged and that a tap
+replaces it. Every message that carries the reminder-hour keyboard MUST ask the question those
+buttons answer. A week with a shared first place MUST name it as shared, and a week nobody logged
+MUST name no winner. Ranks MUST break ties exactly as the ranking query orders (section 4.3).
+*Accept:* every line of the "Finish" section of [docs/SMOKE.md](docs/SMOKE.md) passes.
+*Accept:* after `/target` and a tap on 300, the next confirmation's bar reads against 300 and
+`/standings` is unchanged.
 
 ---
 
@@ -523,15 +649,25 @@ menus, a caching layer and an API server.
 **Phase 1 alone is roughly 900 effective lines**, since it carries the config, schema, bot core and
 both main flows. Phases 2 to 4 add about 150, 180 and 120.
 
-If the total passes **2,000**, something from section 8 has crept back in. An earlier draft of this
-requirement said 800 to 1,000, which was a guess made before reminders with a follow-up, dual
-weekly and season standings, streaks and tags were added.
+An earlier draft of this requirement said 800 to 1,000, which was a guess made before reminders
+with a follow-up, dual weekly and season standings, streaks and tags were added. A later draft made
+2,000 a ceiling and read passing it as "something from section 8 has crept back in".
+
+*Ceiling removed 2026-09-08 by the owner.* It was set when the intent was to trim the bot hard, and
+by Phase 5 it was blocking features that had passed the admission rule (section 9 Q6) and none of
+which came from section 8. The count stays as a trend, taken with the CLAUDE.md command so figures
+compare, and **section 8 is the alarm**: a feature from that list is a defect whatever the size.
+Size is still evidence in the admission rule's Cost axis, so a large feature still has to earn
+its lines; it no longer has to fit under a number.
 
 *Note added 2026-07-31:* the per-phase split above (900, then about 150, 180 and 120) is a rounded
 residual, not a costed estimate. The table has no row for tags and none for backups, its rows sum to
 1,305, and the phase split sums to 1,350. Phase 4's 120 in particular was written while the weekly
 streak was still unbuilt, and Phases 1 and 2 have since spent it. Actual figures: 1,916 effective
-lines after Phase 3, 1,920 after Phase 4.
+lines after Phase 3, 1,920 after Phase 4, 1,958 after the pre-smoke fixes, 1,981 after Phase 5, and
+1,997 after its critic pass (the season result on the closing post, a defect fix, plus three copy
+and rendering corrections), and 2,145 after the clock, the local race and the self-chosen target, then 2,156 after the scoring change to active days (design §12), and 2,305 after the finish pass
+(design §13).
 
 ---
 
@@ -547,13 +683,24 @@ Read this before re-adding any of them.
 | **Free-form minutes entry** | Invites false precision, removes the honesty cap, and converts one tap into typing |
 | **A global individual leaderboard** | Continuous low placement accumulates failure. Cheap to omit, and the neighbour view gives the useful part |
 | **Encouraging or supporting teammates** | Directly contradicted by evidence: in an RCT of 790 students the social support arm scored *below* the control arm. See [docs/evidence.md](docs/evidence.md) §1.1 |
-| **Elaborate team mechanics** | The same trial found comparison worked equally well with individual or team incentives. The guild structure earns its place through identity and through providing a group chat, not through team spirit |
+| **Elaborate team mechanics** | The same trial found comparison worked equally well with individual or team incentives. The guild structure earns its place through identity and through providing a group chat, not through team spirit. *Clarified 2026-09-08:* this rejects team-spirit features (shared quests, team chat, collaboration mechanics), not small groups. Every positive competition trial used groups of three to six, and a guild is 350 to 700, which no trial covers ([docs/evidence.md](docs/evidence.md) §4). Sub-squads are held back by cost, not by evidence (Phase 5 design candidate AC, scored 15) |
 | **Daily streaks** | The WHO guideline is weekly. A daily streak teaches that a rest day is a failure |
 | **Weekly point caps** | The tier cap already bounds a day, making a separate weekly cap redundant |
 | **Distance, GPS, photo or wearable verification** | Nothing available verifies effort. Location is invasive without being convincing |
 | **An admin panel** | A configuration file and a restart is sufficient for nine guilds and one organiser |
 | **Caching and snapshot tables** | Solves a performance problem that does not exist at this data volume, and introduces invalidation bugs that do |
 | **Kubernetes** | Large operational surface for two containers |
+| **Loss-framed points that reset weekly** | *Added 2026-09-07.* Effective in every trial that used them, and every one of those trials attached money or socially meaningful points. Losing purely symbolic points is untested theatre ([docs/evidence.md](docs/evidence.md) §5) |
+| **Dice, rolls, variable rewards, any randomness** | *Added 2026-09-07.* Variable reward is the loot-box mechanism, and its correlation with problem gambling replicates. Nothing here needs randomising; the standings already vary |
+| **Badges and achievements** | *Added 2026-09-07.* The one field experiment is a marketplace, not exercise, and shows a modest effect. Forty lines of pointsification |
+| **A participation share, or "N of your guild logged today"** | *Added 2026-09-07.* A broadcast low descriptive norm pulls the people above it down toward it (Schultz et al. 2007, replicated), and at the 12% base rate section 1 expects both are low norms. The Monday post counts people instead (FR-20) |
+| **Hiding the result behind a spoiler** | *Added 2026-09-07.* A curiosity gap on the one number that must stay ambient. Friction sold as fun |
+| **Motivational lines in reminders** | *Added 2026-09-07.* Each irrelevant message cost 82 to 104 steps a day in the Random AIM trial. The reminder is the check-in message and nothing else (FR-21) |
+| **Prizes or tangible rewards** | *Added 2026-09-07.* Expected tangible rewards undermine intrinsic motivation (d = -0.28 to -0.40 across 128 experiments). Rewards here are symbolic and collective |
+| **Scoring guilds on minutes or any volume unit** | *Added 2026-09-08.* Depth is cheaper than breadth for a guild to buy, the people whose hours it rewards would have trained anyway, and the randomised trials that made team competition work scored goal-days and visits ([docs/evidence.md](docs/evidence.md) §6.3). Replaced by active days per member (4.3) |
+| **Displaying a per-member average, per-100 figure or share anywhere** | *Added 2026-09-08.* An average over the roster is a low descriptive norm broadcast to everyone above it; users shown the median cut contributions by 62% (Chen et al. 2010, §6.4). Ranks and counts only |
+| **Conjunctive or weakest-member scoring, and consecutive-day bonuses at guild level** | *Added 2026-09-08.* The one field RCT with an all-must-succeed team rule was null in four-person teams (Patel et al. 2016, §6.2); at 500 members the weakest member is always at zero. Streaks stay personal |
+| **A critical-mass target in copy ("we need 100 people")** | *Added 2026-09-08.* A missed threshold is a broadcast failure, and the framing is untested here. The mark to beat is the guild's own last count, which it set itself |
 
 ---
 
@@ -570,7 +717,30 @@ evidence supports.
 This is now the **only question blocking implementation**, and it blocks only the configuration
 file. Phases 1 and 2 of section 10 can be built against a placeholder window.
 
+**Q7. A weekly target below the WHO line.** *Opened 2026-09-08.* FR-29 lets a member raise their
+target; nothing below 150 is offered. The evidence for self-chosen goals (ENGAGE, docs/evidence.md
+§5.7) is about attainability, and the closing post is written for the previous non-exerciser, for
+whom four sessions a week from zero is a lot (Charness and Gneezy's durable habit came from about
+two). Offering 75 means the bot says "Target hit" for a below-guideline week. Adding an option is
+one entry in `TARGET_OPTIONS`; deciding whether to is the owner's. Not blocking.
+
+**Q9. Small-group structure.** *Opened 2026-09-08.* Every positive team result in the literature
+comes from groups of two to eleven who could see each other's daily result; a guild is 350 to 700,
+and no trial covers that scale ([docs/evidence.md](docs/evidence.md) §6.1). The scoring change in
+4.3 bounds contributions but does not supply small-group visibility. The cheapest evidence-backed
+form is a pair rule (a pair's combined active days, capped at 14 a week, visible to both); a
+per-guild league is out (FR-15). Not blocking. Worth deciding after the first competition shows
+whether the local race in the Monday post is enough.
+
 ### Decided
+
+**Q8. The daily cap and members who train ten hours a week.** *Opened and decided 2026-09-08.*
+The concern was that such members could not contribute enough under the 75-minute cap. The
+scoring change in 4.3 answers it by removing the question: the guild is credited with days, not
+minutes, so a member training daily contributes seven a week, the most anyone can, and their
+hours are their own (the personal target, FR-29). The cap no longer limits anyone's contribution.
+What such a member can do beyond seven days is bring one more person, which the registration
+reply now asks for (FR-30) and which the scoring rule now rewards.
 
 **Q2. Reminders are a user choice, not a default.** *Decided 2026-07-30.* Every user is asked at
 registration and can change it at any time. There is no silent default in either direction: nobody
@@ -604,7 +774,8 @@ of a prohibition: it MUST NOT expose a global individual leaderboard, and MAY sh
 neighbours. FR-11 is a `MAY` end to end. Cutting it exercises an option this specification granted
 rather than deviating from it.
 
-Four reasons. It was never designed: [prototype/bot-flows.html](prototype/bot-flows.html) has no tag
+Four reasons. It was never designed: the mockup (`prototype/bot-flows.html`, now only in git
+history, see the companion-documents line at the top) has no tag
 screen, so building it means inventing one. It serves none of the four success criteria in section
 1, because no other participant ever sees a tag. It adds a tap to the one path that must stay at one
 tap (section 4.1), which is the friction section 2 defect 6 blames for mid-competition dropoff. And
@@ -616,6 +787,18 @@ the dispute by removing the scoring, and it is one configuration change away fro
 is not why it is cut, but it is why re-adding it should go through section 8 first.
 
 `days.tag` stays in the schema. Dropping it costs a migration to buy nothing.
+
+**Q6. Features are admitted by a scored utility rule.** *Decided 2026-09-07.* Every new and existing
+feature is scored 2 × Impact + Reach + Cost + Safety, each axis 0 to 5 and anchored in
+[the Phase 5 design](docs/superpowers/specs/2026-09-07-telegram-bot-phase-5-design.md) §3. Eighteen
+or more is built; 14 to 17 waits until the MVP is stable, meaning after the smoke runs; 13 or less
+is rejected and recorded in section 8; an existing feature stays at 14 or more. Size enters only
+through the Cost axis since the ceiling was removed (NFR-6, 2026-09-08).
+
+Two candidates passed the rule and did not fit under NFR-6's ceiling: the competition clock and the
+local race in the Monday post. On 2026-09-08 the owner removed the ceiling (NFR-6), and both were
+built the same day along with the self-chosen target (Phase 5 design §11). NFR-6's count remains an
+input to the Cost axis, not a gate on top of it.
 
 ### Unresolved but not blocking
 
@@ -664,6 +847,28 @@ with Phase 2. FR-11's optional tag is cut (section 9, Q5). What remains is NFR-3
 
 *Done when:* the backup restores into an empty database and reproduces the standings exactly.
 
+### Phase 5: it feels like a game
+
+*Added 2026-09-07.* The fun pass: a celebration on the confirmation that crosses the weekly target
+(FR-28), the streak named on that confirmation and heads that scale with the tier (FR-12), the
+Monday post's participation as a count of people rather than a share, and a closing post written for
+the newcomers whose habit is the one that survives (FR-20). Everything is derived from the same three
+tables; nothing new is stored. Q6 in section 9 is the rule that admitted these and the two that wait.
+An independent critic pass followed (design §10): its claims were tested one by one, and the ones
+that held changed the product: the closing post now names the season result, both reminder answers
+state how guilds are scored, the welcome recommends the reminder without a norm about lapsing, and
+the neighbours block hides while all three are at zero. On 2026-09-08 the owner removed the size
+ceiling and the two admitted features were built (design §11): the competition clock on the
+standings and the Monday post (FR-16, FR-20) and the local race in the Monday post (FR-20), plus
+the self-chosen weekly target (FR-29), which stores one choice per user and nothing derived.
+The scoring change to active days per member followed the same day (§4.3, design §12), and then
+a finish pass driven by two critics (FR-31, design §13): the small things, from the bot's profile
+text to the plural of "day", that made it read as unfinished.
+
+*Done when:* the Phase 5 section of [docs/SMOKE.md](docs/SMOKE.md) passes on a real phone, in
+particular the celebration, which relies on a bot reacting to its own message in a private chat and
+is documented nowhere.
+
 **Phases 1 and 2 are the minimum viable competition.** Phase 3 is what determines whether people
 are still using it in week four. Phase 4 is what determines whether the results survive.
 
@@ -680,3 +885,7 @@ are still using it in week four. Phase 4 is what determines whether the results 
 | Guild member counts are wrong or stale | Medium | Verify before launch. Changing one mid-competition changes all historical comparisons |
 | A guild refuses the bot in its chat | Medium | They keep the private-chat path but lose the engagement loop. Establish willingness before launch |
 | Data loss mid-competition | Low but fatal | NFR-3, and test the restore |
+| The Phase 5 celebration relies on an undocumented Telegram behaviour and silently never shows | Low | The smoke checklist looks for the reaction and for the `reaction for <id> failed` log line; the Phase 5 design records the effect-message fallback |
+| The local race in the Monday post reads as pressure to the bottom guild ("40 sessions away") | Medium | One sentence, factual, the same shape at every rank; the smoke run asks two people from a low-placed guild how it reads, and the sentence is one edit in `render.ts` if it reads badly |
+| Members who train daily feel that a day counting once undervalues them | Medium | `/target` gives them a personal bar and the reply says why the guild counts days (FR-29); section 4.3 records that their hours were never the behaviour the competition changes. Their seventh day is worth exactly a newcomer's first, and the recruit they bring is worth seven more |
+| The mark to beat in the Monday post is missed most weeks by most guilds | Medium | It is the guild's own last count, not an imposed threshold; the copy never says it was missed, and the count itself is not a share (section 8) |

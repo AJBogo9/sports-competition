@@ -17,6 +17,7 @@ const SAMPLES: Callback[] = [
   { kind: "me" },
   { kind: "standings" },
   { kind: "bind", slug: "prodeko" },
+  { kind: "target", minutes: 225 },
 ];
 
 describe("callback encoding", () => {
@@ -167,9 +168,20 @@ describe("decode rejects anything it would not itself have encoded", () => {
       // Undo is the one kind with three parts of its own, so its trailing
       // segment is the fifth rather than the fourth.
       "undo:2026-07-30:medium:long:extra",
+      "target:225:extra",
     ]) {
       expect(decode(bad)).toBeNull();
     }
+  });
+
+  // Phase 5 design 11.3. A target button stays live indefinitely, so a payload
+  // for an option no longer in config, or one nobody ever offered, is refused
+  // rather than written.
+  test("a target outside the configured options is rejected", () => {
+    for (const bad of ["target:200", "target:0", "target:abc", "target:", "target"]) {
+      expect(decode(bad)).toBeNull();
+    }
+    expect(decode("target:150")).toEqual({ kind: "target", minutes: 150 });
   });
 
   // "off" is the encoded form of hour: null for both kinds, so the round-trip

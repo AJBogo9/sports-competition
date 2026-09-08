@@ -1,3 +1,6 @@
+import { COMPETITION_END, COMPETITION_START } from "./config.ts";
+import { calendar } from "./db/calendar.ts";
+import { competitionPhase } from "./domain/scoring.ts";
 import { createBot, installCommands } from "./bot/index.ts";
 import { startTicker } from "./bot/ticker.ts";
 import { connect, waitForDatabase } from "./db/client.ts";
@@ -14,6 +17,15 @@ const applied = await migrate(sql);
 if (applied.length > 0) console.log(`applied migrations: ${applied.join(", ")}`);
 await syncGuilds(sql);
 
+// Phase 5 design 13.3. The configured window is the placeholder CLAUDE.md
+// warns about, so it is printed at every boot, with a warning when today is
+// outside it: the ticker is then inert and the check-in refuses, quietly.
+const { today } = await calendar(sql);
+console.log(`competition ${COMPETITION_START} to ${COMPETITION_END}, today ${today}`);
+if (competitionPhase(today) !== "during") {
+  console.warn("today is outside the competition window: no pins, no posts, no reminders");
+}
+
 const bot = createBot(sql, token);
 await installCommands(bot);
 
@@ -27,8 +39,13 @@ await installCommands(bot);
 // message on the next boot, because recordMondayPost never ran to record it.
 const stopTicker = startTicker(bot, sql);
 
-process.once("SIGINT", () => { stopTicker(); void bot.stop(); });
-process.once("SIGTERM", () => { stopTicker(); void bot.stop(); });
+function shutdown(signal: string): void {
+  console.log(`${signal}: stopping`);
+  stopTicker();
+  void bot.stop();
+}
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
 
 await bot.start({
   onStart: (me) => console.log(`@${me.username} polling`),

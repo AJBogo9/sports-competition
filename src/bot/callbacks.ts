@@ -1,5 +1,5 @@
 import { isTier } from "../domain/scoring.ts";
-import type { Tier } from "../config.ts";
+import { TARGET_OPTIONS, type Tier } from "../config.ts";
 
 /**
  * Every button carries its full meaning, so a tap on a message sent before a
@@ -40,7 +40,10 @@ export type Callback =
   | { kind: "stay" }
   | { kind: "me" }
   | { kind: "standings" }
-  | { kind: "bind"; slug: string };
+  | { kind: "bind"; slug: string }
+  /** FR-29. A /target choice. Only a configured option decodes, so a button
+   *  for an option later removed from config is refused, not written. */
+  | { kind: "target"; minutes: number };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLUG = /^[a-z][a-z0-9-]{0,30}$/;
@@ -60,6 +63,7 @@ export function encode(callback: Callback): string {
     case "me":        return "me";
     case "standings": return "standings";
     case "bind":      return `bind:${callback.slug}`;
+    case "target":    return `target:${callback.minutes}`;
   }
 }
 
@@ -129,6 +133,12 @@ function parse(data: string): Callback | null {
     case "log":
       if (!first || !DATE.test(first) || !second || !isTier(second)) return null;
       return { kind: "log", date: first, tier: second };
+
+    case "target": {
+      if (!first || !/^\d{1,4}$/.test(first)) return null;
+      const minutes = Number(first);
+      return TARGET_OPTIONS.includes(minutes) ? { kind: "target", minutes } : null;
+    }
 
     case "undo": {
       // `third` is required, so a payload from the build before undo carried

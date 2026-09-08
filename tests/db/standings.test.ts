@@ -22,11 +22,21 @@ describe("standings (FR-16)", () => {
     const table = await standings(sql, WEEK_FROM, WEEK_TO);
     expect(table).toHaveLength(9);
     expect(table.every((row) => typeof row.perMember === "number")).toBe(true);
+    expect(table.every((row) => typeof row.activeDays === "number")).toBe(true);
   });
 
-  // SPEC.md section 4.3: minutes per member across the entire roster,
-  // including everyone who never logs anything. Prodeko has 650 members and
-  // TiK has 700, both from config.
+  // Phase 5 design 11.2. The local race converts a per-member gap into sessions
+  // over the reader's own roster, so each row carries its denominator.
+  test("each row carries its roster size from config", async () => {
+    const table = await standings(sql, WEEK_FROM, WEEK_TO);
+    expect(table.find((row) => row.slug === "prodeko")?.memberCount).toBe(650);
+    expect(table.find((row) => row.slug === "tik")?.memberCount).toBe(700);
+  });
+
+  // SPEC.md section 4.3 (amended 2026-09-08): active days per member across
+  // the entire roster, including everyone who never logs anything. Prodeko has
+  // 650 members and TiK has 700, both from config. Minutes are still summed,
+  // as the tiebreaker.
   test("divides by the full roster, hand-calculated", async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
     await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Bob" });
@@ -41,10 +51,41 @@ describe("standings (FR-16)", () => {
     const prodeko = table.find((row) => row.slug === "prodeko");
     const tik = table.find((row) => row.slug === "tik");
 
+    expect(prodeko?.activeDays).toBe(3);
     expect(prodeko?.minutes).toBe(142);
-    expect(prodeko?.perMember).toBeCloseTo(142 / 650, 5);
+    expect(prodeko?.perMember).toBeCloseTo(3 / 650, 5);
+    expect(tik?.activeDays).toBe(0);
     expect(tik?.minutes).toBe(0);
     expect(tik?.perMember).toBe(0);
+  });
+
+  // Phase 5 design 12.1. A day counts once whatever its tier, and a rest day
+  // is a record but not an active day.
+  test("a day counts once however long, and a rest day is not an active day", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
+    await logDay(sql, 1, "2026-07-27", "rest");
+    await logDay(sql, 1, "2026-07-28", "long");
+    await logDay(sql, 1, "2026-07-29", "short");
+
+    const prodeko = (await standings(sql, WEEK_FROM, WEEK_TO))
+      .find((row) => row.slug === "prodeko");
+    expect(prodeko?.activeDays).toBe(2);
+    expect(prodeko?.perMember).toBeCloseTo(2 / 650, 5);
+  });
+
+  // Phase 5 design 12.1. Equal active days per member break the tie on
+  // minutes per member, so volume decides ties without deciding the race.
+  // Prodeko and AS both have 650 members.
+  test("equal active days per member are broken by minutes per member", async () => {
+    await createUser(sql, { telegramId: 1, guildSlug: "as", firstName: "Short" });
+    await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Long" });
+    await logDay(sql, 1, "2026-07-28", "short");
+    await logDay(sql, 2, "2026-07-28", "long");
+
+    const table = await standings(sql, WEEK_FROM, WEEK_TO);
+    expect(table[0]?.slug).toBe("prodeko");
+    expect(table[1]?.slug).toBe("as");
+    expect(table[0]?.perMember).toBe(table[1]?.perMember);
   });
 
   // Verified against Postgres: SUM(minutes) / member_count with two integers
@@ -57,11 +98,11 @@ describe("standings (FR-16)", () => {
     const prodeko = (await standings(sql, WEEK_FROM, WEEK_TO))
       .find((row) => row.slug === "prodeko");
     expect(prodeko?.perMember).toBeGreaterThan(0);
-    expect(prodeko?.perMember).toBeCloseTo(75 / 650, 5);
+    expect(prodeko?.perMember).toBeCloseTo(1 / 650, 5);
   });
 
-  test("ranks by minutes per member, not by raw minutes", async () => {
-    // Athene has 350 members, TiK has 700. Equal raw minutes must put the
+  test("ranks by active days per member, not by raw days", async () => {
+    // Athene has 350 members, TiK has 700. Equal raw days must put the
     // smaller guild ahead.
     await createUser(sql, { telegramId: 1, guildSlug: "athene", firstName: "Small" });
     await createUser(sql, { telegramId: 2, guildSlug: "tik", firstName: "Big" });
@@ -78,6 +119,7 @@ describe("standings (FR-16)", () => {
 
     const prodeko = (await standings(sql, WEEK_FROM, WEEK_TO))
       .find((row) => row.slug === "prodeko");
+    expect(prodeko?.activeDays).toBe(0);
     expect(prodeko?.minutes).toBe(0);
   });
 
@@ -88,6 +130,7 @@ describe("standings (FR-16)", () => {
 
     const prodeko = (await standings(sql, "2026-07-27", "2026-08-09"))
       .find((row) => row.slug === "prodeko");
+    expect(prodeko?.activeDays).toBe(2);
     expect(prodeko?.minutes).toBe(150);
   });
 });
@@ -199,15 +242,16 @@ describe("weeklyTotals", () => {
 });
 
 describe("participation (FR-20)", () => {
-  // Phase 2 design 4.3. The denominator is the configured roster, the same one
-  // every other per-member number uses. Prodeko has 650 members in config.
-  test("divides logging members by the full roster", async () => {
+  // Phase 5 design 5.4. A count of people, not a share of the roster: at the
+  // base rate SPEC.md section 1 expects, the share this used to return was a
+  // low descriptive norm broadcast to a whole guild chat every Monday.
+  test("counts the members who logged at least once", async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
     await createUser(sql, { telegramId: 2, guildSlug: "prodeko", firstName: "Bob" });
     await logDay(sql, 1, "2026-07-28", "medium");
     await logDay(sql, 2, "2026-07-29", "long");
 
-    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(2);
   });
 
   // Phase 2 design 4.3. FR-8 makes rest an explicit record rather than an
@@ -216,7 +260,7 @@ describe("participation (FR-20)", () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
     await logDay(sql, 1, "2026-07-28", "rest");
 
-    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(1 / 650, 10);
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(1);
   });
 
   test("counts a member who logged twice only once", async () => {
@@ -224,7 +268,7 @@ describe("participation (FR-20)", () => {
     await logDay(sql, 1, "2026-07-28", "short");
     await logDay(sql, 1, "2026-07-29", "long");
 
-    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(1 / 650, 10);
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(1);
   });
 
   test("excludes a registered member who never logged", async () => {
@@ -247,7 +291,7 @@ describe("participation (FR-20)", () => {
     await logDay(sql, 1, "2026-07-27", "long"); // WEEK_FROM itself
     await logDay(sql, 2, "2026-08-02", "long"); // WEEK_TO itself
 
-    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(2);
   });
 
   test("returns zero for a guild with nobody registered", async () => {
@@ -256,7 +300,7 @@ describe("participation (FR-20)", () => {
 
   // Proves the u.guild_slug = g.slug join is load-bearing: a logger in
   // another guild must not inflate this guild's numerator. Contamination here
-  // would be silent, since the fraction would still look plausible.
+  // would be silent, since the count would still look plausible.
   test("a logger in another guild does not inflate this guild's participation", async () => {
     await createUser(sql, { telegramId: 1, guildSlug: "prodeko", firstName: "Alice" });
     await createUser(sql, { telegramId: 2, guildSlug: "tik", firstName: "Bob" });
@@ -294,16 +338,17 @@ describe("blocked users still count toward every score", () => {
   // on: it retroactively deletes every minute they ever logged. The pinned
   // message then publishes the guild's score dropping, in front of the whole
   // guild, with no event to explain it.
-  test("standings keeps a blocked user's minutes", async () => {
+  test("standings keeps a blocked user's days and minutes", async () => {
     const prodeko = (await standings(sql, WEEK_FROM, WEEK_TO))
       .find((row) => row.slug === "prodeko");
+    expect(prodeko?.activeDays).toBe(2);
     expect(prodeko?.minutes).toBe(120);
-    expect(prodeko?.perMember).toBeCloseTo(120 / 650, 5);
+    expect(prodeko?.perMember).toBeCloseTo(2 / 650, 5);
   });
 
-  // FR-20's participation share, which reaches the Monday post.
+  // FR-20's participation count, which reaches the Monday post.
   test("participation keeps a blocked user", async () => {
-    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBeCloseTo(2 / 650, 10);
+    expect(await participation(sql, "prodeko", WEEK_FROM, WEEK_TO)).toBe(2);
   });
 
   // The quietest of the three, and the one whose comment did not carry the

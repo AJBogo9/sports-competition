@@ -4,7 +4,7 @@ import { COMPETITION_START } from "../config.ts";
 import { calendar } from "../db/calendar.ts";
 import { listChats, recordMondayPost, recordPin, unbindChat, type Chat } from "../db/chats.ts";
 import { participation, standings, type GuildStanding } from "../db/standings.ts";
-import { competitionRanks, isInWindow, previousWeek } from "../domain/scoring.ts";
+import { isInWindow, localRace, previousWeek, standingRanks } from "../domain/scoring.ts";
 import {
   dayBefore,
   isFinalMondayPost,
@@ -13,6 +13,12 @@ import {
 } from "../domain/scheduling.ts";
 import { mondayPost, pinnedStandings } from "./render.ts";
 import { sendDueReminders } from "./reminders.ts";
+
+/** Phase 5 design 11.1. The two clock fields calendar() returns, passed through. */
+interface Clock {
+  weekNumber: number;
+  weekCount: number;
+}
 
 const TICK_MS = 60_000;
 const PIN_REFRESH_MS = 15 * 60_000;
@@ -77,8 +83,11 @@ async function refreshPin(
   chat: Chat,
   week: readonly GuildStanding[],
   season: readonly GuildStanding[],
+  clock: Clock,
 ): Promise<void> {
-  const text = pinnedStandings({ week, season, pinFailed: chat.pinFailed });
+  // The pin refreshes only inside the window (4.7), so its phase is always
+  // "during"; the fallbacks in clock() are for /standings, which is unguarded.
+  const text = pinnedStandings({ week, season, ...clock, phase: "during", pinFailed: chat.pinFailed });
 
   if (chat.pinnedMessageId === null) {
     const sent = await bot.api.sendMessage(chat.chatId, text, { parse_mode: "HTML" });
@@ -88,6 +97,7 @@ async function refreshPin(
     // (phase 2 design 3.2).
     const pinFailed = !(await tryPin(bot, chat.chatId, messageId));
     await recordPin(sql, chat.chatId, { messageId, text, pinFailed });
+    console.log(`standings posted in chat ${chat.chatId}${pinFailed ? " (pin refused, needs admin)" : " and pinned"}`);
     return;
   }
 
@@ -179,42 +189,64 @@ async function tryPin(bot: Bot, chatId: string, messageId: string): Promise<bool
  * it hold across overlapping ticks within one process (fix round 1,
  * critical). Neither guarantee alone was sufficient.
  */
-async function sendMondayPost(bot: Bot, sql: Sql, chat: Chat, weekStart: string) {
+/**
+ * A table's winner and one guild's place in it. chats.guild_slug carries a
+ * foreign key onto guilds.slug and standings() selects FROM guilds, so a miss
+ * means the two have drifted. Surfacing it beats posting a guessed rank to a
+ * whole guild chat.
+ */
+function placing(table: readonly GuildStanding[], slug: string) {
+  const index = table.findIndex((row) => row.slug === slug);
+  if (table.length === 0 || index === -1) throw new Error(`guild "${slug}" missing from standings`);
+  // Phase 5 design 13.1. Ranks break ties as the query orders, and the
+  // winners are every guild at rank 1 with a day to its name: under day
+  // counts equal rosters tie more easily than under minutes, and a week
+  // nobody logged has no winner.
+  const ranks = standingRanks(table);
+  const winners = table.filter((row, i) => ranks[i] === 1 && row.activeDays > 0).map((row) => row.name);
+  return { winners, own: table[index]!, rank: ranks[index]!, index };
+}
+
+async function sendMondayPost(bot: Bot, sql: Sql, chat: Chat, weekStart: string, clock: Clock) {
+  // Phase 2 design 4.8. Derived from weekStart rather than from today, so a
+  // competition ending mid-week does not print the closing copy on a Monday
+  // that still has a week to come. See isFinalMondayPost.
+  const final = isFinalMondayPost({ weekStart });
   // Last week runs from the previous Monday to the Sunday before this one.
   const lastWeekStart = previousWeek(weekStart);
   const lastWeekEnd = dayBefore(weekStart);
-  const [table, share] = await Promise.all([
+  const [table, loggers, seasonTable] = await Promise.all([
     standings(sql, lastWeekStart, lastWeekEnd),
     participation(sql, chat.guildSlug, lastWeekStart, lastWeekEnd),
+    // Phase 5 design 10.1. The season result rides only on the closing post,
+    // over the same range the pin froze on (4.7), so the two agree.
+    final ? standings(sql, COMPETITION_START, lastWeekEnd) : null,
   ]);
-
-  const winner = table[0];
-  const index = table.findIndex((row) => row.slug === chat.guildSlug);
-  // chats.guild_slug carries a foreign key onto guilds.slug and standings()
-  // selects FROM guilds, so a miss means the two have drifted. Surfacing it
-  // beats posting a guessed rank to a whole guild chat.
-  if (!winner || index === -1) throw new Error(`guild "${chat.guildSlug}" missing from standings`);
-  const own = table[index]!;
-  const ranks = competitionRanks(table.map((row) => row.perMember));
+  const week = placing(table, chat.guildSlug);
+  const season = seasonTable && placing(seasonTable, chat.guildSlug);
 
   await bot.api.sendMessage(
     chat.chatId,
     mondayPost({
-      winnerName: winner.name,
-      winnerPerMember: winner.perMember,
-      guildName: own.name,
-      guildRank: ranks[index]!,
+      winners: week.winners,
+      guildName: week.own.name,
+      guildRank: week.rank,
       guildCount: table.length,
-      guildPerMember: own.perMember,
-      participation: share,
-      // Phase 2 design 4.8. Derived from weekStart rather than from today, so
-      // a competition ending mid-week does not print the closing copy on a
-      // Monday that still has a week to come. See isFinalMondayPost.
-      final: isFinalMondayPost({ weekStart }),
+      guildDays: week.own.activeDays,
+      loggers,
+      ...clock,
+      // Phase 5 design 11.2. From the same last-week table as the rank, so
+      // the two never disagree.
+      race: localRace(table, week.index),
+      ...(season && {
+        final: { winnerName: season.winners.join(" and "), guildRank: season.rank },
+      }),
     }),
     { parse_mode: "HTML" },
   );
   await recordMondayPost(sql, chat.chatId, weekStart);
+  // Phase 5 design 13.3. The one line a maintainer needs on a Monday.
+  console.log(`monday post sent to chat ${chat.chatId} for week ${weekStart}${final ? " (closing)" : ""}`);
 }
 
 /**
@@ -275,7 +307,8 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
     }
     running = true;
     try {
-      const { today, yesterday, weekStart, hour } = await calendar(sql);
+      const { today, yesterday, weekStart, hour, weekNumber, weekCount } = await calendar(sql);
+      const clock: Clock = { weekNumber, weekCount };
 
       // Phase 2 design 4.7 and 4.8. The two halves of this loop stop at
       // DIFFERENT dates, and keeping them apart is the whole point of this
@@ -350,7 +383,7 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
         // One chat's failure must not stop the other eight and must not kill the
         // interval, so every chat is isolated.
         try {
-          if (refreshPins) await refreshPin(bot, sql, chat, week, season);
+          if (refreshPins) await refreshPin(bot, sql, chat, week, season, clock);
           if (
             shouldPostMonday({
               weekStart,
@@ -359,7 +392,7 @@ export function startTicker(bot: Bot, sql: Sql): () => void {
               localHour: hour,
             })
           ) {
-            await sendMondayPost(bot, sql, chat, weekStart);
+            await sendMondayPost(bot, sql, chat, weekStart, clock);
           }
         } catch (error) {
           if (isGone(error)) {

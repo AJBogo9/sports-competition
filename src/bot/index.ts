@@ -5,8 +5,9 @@ import { installCheckIn } from "./checkin.ts";
 import { installReports } from "./reports.ts";
 import { installGroup } from "./group.ts";
 import { installReminders } from "./reminders.ts";
+import { installTarget } from "./target.ts";
 import { clearBlocked } from "../db/reminders.ts";
-import { COMMAND_DESCRIPTIONS } from "../strings.ts";
+import { BOT_DESCRIPTION, BOT_SHORT_DESCRIPTION, COMMAND_DESCRIPTIONS, SOMETHING_WRONG, UNKNOWN_TEXT } from "../strings.ts";
 
 export function createBot(sql: Sql, token: string): Bot {
   const bot = new Bot(token);
@@ -64,10 +65,21 @@ export function createBot(sql: Sql, token: string): Bot {
   // Installs a callback_query:data listener too, so it must stay above the
   // catch-all below, which answers anything unclaimed and stops the chain.
   installReminders(bot, sql);
+  // FR-29. Same shape as reminders: a command plus a callback listener that
+  // falls through, so it too must stay above the catch-all.
+  installTarget(bot, sql);
 
   // Any unclaimed callback still needs answering, or the client spins forever.
   bot.on("callback_query:data", async (ctx) => {
     await ctx.answerCallbackQuery();
+  });
+
+  // Phase 5 design 13.3. A typed message, or an unknown command, in a private
+  // chat is never met with silence: every command handler above has already
+  // declined it. Groups stay silent, where a reply to every message would be
+  // noise in a chat of hundreds.
+  bot.on("message:text", async (ctx) => {
+    if (ctx.chat.type === "private") await ctx.reply(UNKNOWN_TEXT);
   });
 
   /**
@@ -94,6 +106,18 @@ export function createBot(sql: Sql, token: string): Bot {
     }
 
     console.error(`update ${updateId} from ${userId} failed`, error.error);
+
+    // Phase 5 design 13.3. The person gets a sentence too, not only the log:
+    // a failed tap otherwise leaves the client spinner running until Telegram
+    // times it out, and a failed command gets nothing. Best effort, and never
+    // awaited into a second failure. Private chats only, for the same reason
+    // as the text fallback above.
+    const ctx = error.ctx;
+    if (ctx.callbackQuery) {
+      void ctx.answerCallbackQuery(SOMETHING_WRONG).catch(() => {});
+    } else if (ctx.chat?.type === "private") {
+      void ctx.reply(SOMETHING_WRONG).catch(() => {});
+    }
   });
 
   return bot;
@@ -105,12 +129,18 @@ export function createBot(sql: Sql, token: string): Bot {
  * guild group offers /standings but not /log.
  */
 export async function installCommands(bot: Bot): Promise<void> {
+  // Phase 5 design 13.3. What a recruit sees before tapping Start: the line
+  // under the name and the "What can this bot do?" panel. Set at every boot,
+  // so the profile never depends on someone remembering BotFather.
+  await bot.api.setMyShortDescription(BOT_SHORT_DESCRIPTION);
+  await bot.api.setMyDescription(BOT_DESCRIPTION);
   await bot.api.setMyCommands(
     [
       { command: "log", description: COMMAND_DESCRIPTIONS.log },
       { command: "me", description: COMMAND_DESCRIPTIONS.me },
       { command: "standings", description: COMMAND_DESCRIPTIONS.standings },
       { command: "remind", description: COMMAND_DESCRIPTIONS.remind },
+      { command: "target", description: COMMAND_DESCRIPTIONS.target },
     ],
     { scope: { type: "all_private_chats" } },
   );

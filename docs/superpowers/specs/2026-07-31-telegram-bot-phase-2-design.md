@@ -226,6 +226,10 @@ row in the range, over the guild's configured `member_count`. **A rest day count
 participation.** FR-8 makes rest an explicit record rather than an absence, and the number measures
 engagement, not minutes.
 
+*Updated 2026-09-07:* the share over `member_count` became a count of people, because at the base
+rate SPEC.md §1 expects a share is a low descriptive norm broadcast to a whole guild every Monday.
+See phase 5 design 5.4. The rest-day rule is unchanged.
+
 ### 4.4 The Monday post fires late rather than never
 
 The condition is "this chat has no post for the current week and local time is past Monday 09:00",
@@ -304,6 +308,11 @@ exact moment attention has moved on, which is when manual steps get skipped.
 Rejected: naming the season winner in the closing post as well. It needs a second `standings()` call
 over the whole window and three more renderer inputs, all on a path that executes once per
 competition. The season table is already visible in the frozen pin and in `/standings`.
+
+*Overturned 2026-09-07 by the Phase 5 design §10.1.* Cost was the wrong axis: the closing post is
+the one notifying message the competition ends on, the pin is silent, and a competition whose result
+is never announced is a defect. The closing post now opens with the season winner and the reader's
+season rank, and the last week's sentence follows unchanged.
 
 ---
 

@@ -6,9 +6,10 @@ import {
   findUser,
   moveUser,
   setReminderHour,
+  setTarget,
   syncGuilds,
 } from "../../src/db/users.ts";
-import { GUILDS } from "../../src/config.ts";
+import { GUILDS, WEEKLY_TARGET_MINUTES } from "../../src/config.ts";
 
 const sql = await freshDatabase("users");
 afterAll(async () => { await sql.end(); });
@@ -201,6 +202,21 @@ describe("users", () => {
     await createUser(sql, { telegramId: 4242, guildSlug: "prodeko", firstName: "Andreas" });
     await moveUser(sql, 4242, "tik");
     expect((await findUser(sql, 4242))?.guildSlug).toBe("tik");
+  });
+
+  // FR-29 and phase 5 design 11.3. The target is the config figure until the
+  // user raises it; the column holds only a choice, never a derived number.
+  test("a new user has the configured weekly target", async () => {
+    await createUser(sql, { telegramId: 4242, guildSlug: "prodeko", firstName: "Andreas" });
+    expect((await findUser(sql, 4242))?.targetMinutes).toBe(WEEKLY_TARGET_MINUTES);
+  });
+
+  test("setTarget stores the chosen target and it survives a re-registration", async () => {
+    await createUser(sql, { telegramId: 4242, guildSlug: "prodeko", firstName: "Andreas" });
+    await setTarget(sql, 4242, 300);
+    expect((await findUser(sql, 4242))?.targetMinutes).toBe(300);
+    await createUser(sql, { telegramId: 4242, guildSlug: "prodeko", firstName: "Andreas" });
+    expect((await findUser(sql, 4242))?.targetMinutes).toBe(300);
   });
 
   // FR-4: declining must be permitted, and there is no silent default.

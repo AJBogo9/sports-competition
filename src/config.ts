@@ -55,6 +55,15 @@ export const TIER_ORDER: readonly Tier[] = ["short", "medium", "long", "rest"];
 export const WEEKLY_TARGET_MINUTES = 150;
 
 /**
+ * FR-29 and phase 5 design 11.3. The weekly targets a member may choose from
+ * with /target, ascending, the WHO figure first because it is where everyone
+ * starts. None below it: SPEC.md section 4.2 keeps the guideline as the floor
+ * until the owner rules otherwise, and adding one is an entry here. The top
+ * option is six long days, the most a week can count under the daily cap.
+ */
+export const TARGET_OPTIONS: readonly number[] = [WEEKLY_TARGET_MINUTES, 225, 300, 450];
+
+/**
  * FR-20. Monday morning, in TIMEZONE. Monday because that is the temporal
  * landmark where student gym attendance measurably rises, which is the whole
  * reason the post exists on that day rather than Sunday night.
