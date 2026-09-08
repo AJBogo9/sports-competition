@@ -1,7 +1,7 @@
 # Guild Activity Competition: Specification
 
 **Last updated:** 2026-09-08
-**Status:** Phases 1 to 5 built, Phase 5 through its critic pass and the post-ceiling build of 2026-09-08; no smoke run done; nothing deployed. Language and reminder
+**Status:** Phases 1 to 5 built, Phase 5 through its critic pass and the post-ceiling build of 2026-09-08; first smoke run done the same day with one account (docs/smoke-runs/2026-09-08.md); nothing deployed. Language and reminder
 behaviour decided; competition dates still under discussion (section 9, Q1).
 **Companion documents:** [docs/evidence.md](docs/evidence.md) for citations. The interaction
 mockup, `prototype/bot-flows.html`, was deleted in commit 77507ee and survives only in git history

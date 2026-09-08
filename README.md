@@ -105,6 +105,12 @@ neither is free:
 port on the host and uses a throwaway password; it exists only for `bun test` against a disposable
 database.
 
+**On a network that sinkholes `api.telegram.org`** (some university networks resolve it to an
+address that never answers), the bot hangs before its "polling" line. Drop a local, untracked
+`docker-compose.override.yml` beside the compose file pinning the API's real address for the bot
+service (`extra_hosts: ["api.telegram.org:<ip from 8.8.8.8>"]`); the boot log prints the window
+and then `@<bot> polling` when it is through.
+
 ## The design in six lines
 
 - **One tap a day.** Three coarse duration tiers plus a rest day. No sport taxonomy, so there is

@@ -661,6 +661,9 @@ describe("finish copy (phase 5 design 13)", () => {
     });
     expect(after).toContain("Final week");
     expect(after).not.toContain("This week");
+    // Smoke run 2026-09-08: the guild line said "this week" under that label.
+    expect(after).toContain("2nd of 9 in the final week");
+    expect(after).not.toContain("this week");
   });
 });
 
@@ -916,6 +919,18 @@ describe("mondayPost (FR-20)", () => {
     const post = mondayPost({ ...input, final: season });
     expect(post).toContain("TiK wins the season, with Prodeko 4th of 9.");
     expect(post).toContain("Last week Inkubio took it.");
+  });
+
+  // Smoke run 2026-09-08. The season winner reading its own closing post
+  // saw "Prodeko wins the season, with Prodeko 1st of 9." The clause naming
+  // the reader's place is dropped when the reader is the winner; the branch
+  // is on identity, not on rank, and the skeleton test above keeps one winner
+  // for both sides so it still holds.
+  test("the season winner's own closing post does not name it twice", () => {
+    const post = mondayPost({ ...input, guildName: "TiK", final: { ...season, guildRank: 1 } });
+    expect(post).toContain("TiK wins the season.");
+    expect(post).not.toContain("with TiK 1st");
+    expect(post).toContain("TiK finished 2nd of 9");
   });
 
   test("escapes a season winner name containing markup", () => {

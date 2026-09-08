@@ -46,3 +46,24 @@ describe("checkInMessage (FR-5, FR-10)", () => {
     expect(checkInMessage(TODAY, YESTERDAY, null).text).toBe(CHECK_IN_PROMPT);
   });
 });
+
+// Phase 5 design 13.3 and the smoke run of 2026-09-08. "Today instead" and
+// "Log again" re-render the prompt through the same function as /log, so the
+// logged-already line and the yesterday button come back with it; before
+// this they rendered a bare prompt with neither.
+describe("checkInMessage for a specific date", () => {
+  test("today's prompt is the /log prompt, with the yesterday button", () => {
+    const message = checkInMessage(TODAY, YESTERDAY, "short", TODAY);
+    expect(message.text).toContain("Logged already: 15 to 30 min.");
+    expect(buttons(message.keyboard)).toContain("Log yesterday instead");
+    expect(buttons(message.keyboard)).not.toContain("Today instead");
+  });
+
+  test("yesterday's prompt asks about yesterday, names what is logged there, and offers today", () => {
+    const message = checkInMessage(TODAY, YESTERDAY, "rest", YESTERDAY);
+    expect(message.text).toContain("And yesterday?");
+    expect(message.text).toContain("Logged already: Not today.");
+    expect(buttons(message.keyboard)).toContain("Today instead");
+    expect(buttons(message.keyboard)).not.toContain("Log yesterday instead");
+  });
+});

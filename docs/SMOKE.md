@@ -374,7 +374,9 @@ log line, not a message.
 
 - [ ] On a week below 150, log `60+`, then `30 to 60`, then `30 to 60` on three days (75, 120,
       165: the third log crosses). Only the third confirmation may carry a 🎉 reaction under it,
-      and the reaction should play its big animation as it lands. Record whether the animation
+      and the reaction should play its big animation as it lands. (2026-09-08: the reaction is
+      confirmed on a real chat and clears on undo; the animation is still unrecorded, it needs a
+      phone.) Record whether the animation
       played or only the static reaction appeared: the design accepts either but wants to know
       which (phase 5 design 5.1)
 - [ ] Log once more on the same week, now above 150. **No** reaction on that confirmation: only the

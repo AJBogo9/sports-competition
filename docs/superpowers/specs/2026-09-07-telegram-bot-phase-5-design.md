@@ -781,3 +781,13 @@ loop, as what was unfinished, and 8.5 pending the smoke run once the top items w
 its items were fixed. What remains is the smoke run itself (docs/SMOKE.md, now with a Finish
 section), which no amount of code can substitute for: the celebration reaction, the group binding
 order and the copy on a real phone.
+
+### 13.6 The smoke run of 2026-09-08
+
+Run the same day against the dev stack from Telegram Web, one account, one test group; the report
+is docs/smoke-runs/2026-09-08.md. Everything reachable with one account passed, including the
+reaction on the bot's own confirmation (the open question in 1.1 and 5.1: Telegram allows it, and
+the effect-message fallback is not needed). Three copy defects surfaced and were fixed: the
+"Today instead" and "Log again" prompts lacked the logged-already line and the yesterday button,
+the season winner's own closing post named it twice, and `/me` after the end said "this week"
+under a "Final week" label. What the run could not reach is listed in the report.

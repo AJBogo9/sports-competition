@@ -115,8 +115,12 @@ participation as a count of people, the closing post written for newcomers, and 
 pass the season result on the closing post, the scoring rule in the reminder answers, and the
 neighbours block hidden while all three are at zero, and after the owner removed the size ceiling
 on 2026-09-08 the competition clock, the local race in the Monday post and the self-chosen weekly
-target, FR-29). **No phase's smoke run
-has been done yet** (docs/SMOKE.md), and that remains the gate on real users.
+target, FR-29). **The first smoke run was done on 2026-09-08** with one account and one test group
+([docs/smoke-runs/2026-09-08.md](docs/smoke-runs/2026-09-08.md)): every private-chat flow, the
+group binding, the Monday post, the closing post and both window edges passed, the celebration
+reaction on the bot's own message is confirmed, and three copy defects were found and fixed. What
+it could not cover (a second account, the reminder hour, days passing, the pin success path) is
+listed there and remains the gate on real users.
 
 ## Invariants that are easy to break
 

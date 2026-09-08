@@ -78,18 +78,27 @@ export function checkInMessage(
   today: string,
   yesterday: string,
   logged: Tier | null = null,
+  date: string = today,
 ): CheckIn {
+  // Phase 5 design 13.3. When the day is already logged the prompt says what
+  // is there, because FR-7's replacement is otherwise invisible until the
+  // undo toast says "Put back". The reminder path passes nothing: reminders
+  // reach only people who have not logged.
+  const already = logged ? `\n${loggedAlready(logged)}` : "";
+  // FR-10. The yesterday prompt (reached from "Log yesterday instead", and
+  // from "Log again" on an undone backdate) offers the way back to today and
+  // no second backdate. The smoke run of 2026-09-08 found "Today instead"
+  // and "Log again" rendering a bare prompt with neither line nor button;
+  // every prompt now comes from here.
+  if (date !== today) {
+    return { text: `${CHECK_IN_PROMPT_YESTERDAY}${already}`, keyboard: checkInKeyboard(date, null, today) };
+  }
   // FR-10. Only offer the backdate button when yesterday is itself loggable.
   // On the competition's first day, yesterday falls outside the window, and
   // offering the button anyway would cost the user two taps (Yesterday, then
   // any tier) to reach the same OUTSIDE_WINDOW refusal a single tap gives.
   const backdateTo = isInWindow(yesterday) ? yesterday : null;
-  // Phase 5 design 13.3. When today is already logged the prompt says what
-  // is there, because FR-7's replacement is otherwise invisible until the
-  // undo toast says "Put back". The reminder path passes nothing: reminders
-  // reach only people who have not logged.
-  const text = logged ? `${CHECK_IN_PROMPT}\n${loggedAlready(logged)}` : CHECK_IN_PROMPT;
-  return { text, keyboard: checkInKeyboard(today, backdateTo) };
+  return { text: `${CHECK_IN_PROMPT}${already}`, keyboard: checkInKeyboard(today, backdateTo) };
 }
 
 /** The undo button carries the tier this log displaced, so FR-9 can put it
@@ -156,10 +165,8 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       // day before today", so bind to the live yesterday regardless of what
       // date the message happened to carry when it was rendered.
       const { today, yesterday } = await calendar(sql);
-      await ctx.editMessageText(CHECK_IN_PROMPT_YESTERDAY, {
-        parse_mode: "HTML",
-        reply_markup: checkInKeyboard(yesterday, null, today),
-      });
+      const prompt = checkInMessage(today, yesterday, await dayTier(sql, from.id, yesterday), yesterday);
+      await ctx.editMessageText(prompt.text, { parse_mode: "HTML", reply_markup: prompt.keyboard });
       return;
     }
 
@@ -177,11 +184,8 @@ export function installCheckIn(bot: Bot, sql: Sql): void {
       await ctx.answerCallbackQuery();
       const { today, yesterday } = await calendar(sql);
       const date = callback.date === today || callback.date === yesterday ? callback.date : today;
-      const prompt = date === today ? CHECK_IN_PROMPT : CHECK_IN_PROMPT_YESTERDAY;
-      await ctx.editMessageText(prompt, {
-        parse_mode: "HTML",
-        reply_markup: checkInKeyboard(date, null),
-      });
+      const prompt = checkInMessage(today, yesterday, await dayTier(sql, from.id, date), date);
+      await ctx.editMessageText(prompt.text, { parse_mode: "HTML", reply_markup: prompt.keyboard });
       return;
     }
 

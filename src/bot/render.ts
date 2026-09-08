@@ -124,8 +124,9 @@ export function meMessage(input: MeInput): string {
     lines.push(`Streak       ${input.streak} ${weeks} at target`);
   }
   // guildName comes from config.ts and is trusted today; escaped defensively.
+  const when = input.phase === "after" ? "in the final week" : "this week";
   lines.push(
-    `Guild        ${escapeHtml(input.guildName)}, ${ordinal(input.guildRank)} of ${input.guildCount} this week`,
+    `Guild        ${escapeHtml(input.guildName)}, ${ordinal(input.guildRank)} of ${input.guildCount} ${when}`,
   );
 
   let message = `<pre>${lines.join("\n")}</pre>`;
@@ -304,9 +305,14 @@ export interface MondayPostInput {
  * the configured figure (FR-25), and asks for nothing.
  */
 export function mondayPost(input: MondayPostInput): string {
+  // The season winner reading its own post is not told "with Prodeko 1st of
+  // 9" after "Prodeko wins the season" (smoke run 2026-09-08). Identity, not
+  // rank, decides the clause, so the closing skeleton test holds.
+  const placing = input.final && input.final.winnerName !== input.guildName
+    ? `, with ${escapeHtml(input.guildName)} ${ordinal(input.final.guildRank)} of ${input.guildCount}`
+    : "";
   const opening = input.final
-    ? `<b>That's the competition.</b> ${escapeHtml(input.final.winnerName)} wins the season, with ` +
-      `${escapeHtml(input.guildName)} ${ordinal(input.final.guildRank)} of ${input.guildCount}.`
+    ? `<b>That's the competition.</b> ${escapeHtml(input.final.winnerName)} wins the season${placing}.`
     : `<b>Week ${input.weekNumber} of ${input.weekCount}. Everyone back to zero.</b>`;
   // Phase 5 design 12.3. A specific group goal: last week's own count is the
   // mark to beat (Kleingeld et al. 2011, d = 0.80 for specific difficult group
